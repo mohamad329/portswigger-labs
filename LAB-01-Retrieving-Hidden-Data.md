@@ -11,30 +11,29 @@
 
 ## Objective
 
-The goal of this lab is to understand how the invocation condition can be bypassed by using a condition that is always satisfied.
+The objective of this lab is to exploit a SQL Injection vulnerability to retrieve hidden products by modifying the SQL WHERE clause.
 
 ---
 
 ## Vulnerability Overview
 
-An SQL injection vulnerability is a type of web vulnerability that targets databases located on the server.
-
+SQL Injection occurs when an application includes user input directly in an SQL query without proper validation or parameterization, allowing attackers to modify the intended query.
 ---
 
 ## Methodology
 
-1. Reconnaissance
-2. Intercept request using Burp Suite
-3. Analyze parameters
-4. Test for SQL Injection
-5. Exploit
+1. Browse the product category.
+2. Intercept the request using Burp Suite.
+3. Identify the category parameter.
+4. Inject a simple SQL payload.
+5. Observe that hidden products are displayed.t
 
 ---
 
 ## Payload Used
 
 ```
-'OR 1=1--
+' OR 1=1--
 ```
 
 ---
@@ -46,23 +45,26 @@ This payload (SQL injection) succeeds when the application incorporates user inp
 
 ## Impact
 
-Extract all data or bypass the login.
-
+An attacker can retrieve hidden data that should not be accessible to normal users.
 ---
 
 ## Remediation
 
-- Prepared Statements
-- Parameterized Queries
-- Input Validation
-- Least Privilege
+Prepared Statements
+Prevent SQL queries from being modified by user input.
+
+Input Validation
+Reject unexpected input.
+
+Least Privilege
+Reduce the impact if SQL Injection occurs.
 
 ---
 
 ## Lessons Learned
+I learned that SQL Injection is based on understanding SQL queries rather than memorizing payloads.
 
-- 1. Never trust user input.
-- 2. Separating data from SQL commands.
-- 3. Principle of Least Privilege.
-- 4. Suppressing technical error messages.
-- 5. Security-centricity and the use of secure libraries
+User input should never be trusted.
+
+Small changes in the WHERE clause can completely change the query result.
+
