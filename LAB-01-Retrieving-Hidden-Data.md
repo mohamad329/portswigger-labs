@@ -48,6 +48,11 @@ This payload (SQL injection) succeeds when the application incorporates user inp
 An attacker can retrieve hidden data that should not be accessible to normal users.
 ---
 
+## Root Cause
+
+The application directly concatenates user input into the SQL query without using parameterized queries.
+---
+
 ## Remediation
 
 Prepared Statements
