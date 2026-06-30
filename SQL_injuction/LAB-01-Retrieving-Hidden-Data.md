@@ -9,6 +9,12 @@
 
 ---
 
+![SQL Injection](https://img.shields.io/badge/SQL-Injection-red)
+
+![Solved](https://img.shields.io/badge/Status-Solved-success)
+
+---
+
 ## Objective
 
 The objective of this lab is to exploit a SQL Injection vulnerability to retrieve hidden products by modifying the SQL WHERE clause.
@@ -17,7 +23,7 @@ The objective of this lab is to exploit a SQL Injection vulnerability to retriev
 
 ## Vulnerability Overview
 
-SQL Injection occurs when an application includes user input directly in an SQL query without proper validation or parameterization, allowing attackers to modify the intended query.
+SQL Injection occurs when user-controlled input is embedded directly into an SQL query without proper parameterization. In this lab, the application failed to sanitize the category parameter, allowing an attacker to inject SQL code that altered the WHERE clause. As a result, the query returned hidden products that should not have been accessible.
 ---
 
 ## Methodology
@@ -26,13 +32,13 @@ SQL Injection occurs when an application includes user input directly in an SQL 
 2. Intercept the request using Burp Suite.
 3. Identify the category parameter.
 4. Inject a simple SQL payload.
-5. Observe that hidden products are displayed.t
+5. Observe that hidden products are displayed.
 
 ---
 
 ## Payload Used
 
-```
+```sql
 ' OR 1=1--
 ```
 
@@ -55,14 +61,14 @@ The application directly concatenates user input into the SQL query without usin
 
 ## Remediation
 
-Prepared Statements
-Prevent SQL queries from being modified by user input.
+- **Prepared Statements**
+  - Prevent SQL queries from being modified by user input.
 
-Input Validation
-Reject unexpected input.
+- **Input Validation**
+  - Reject unexpected input.
 
-Least Privilege
-Reduce the impact if SQL Injection occurs.
+- **Least Privilege**
+  - Reduce the impact if SQL Injection occurs.
 
 ---
 
@@ -72,5 +78,21 @@ I learned that SQL Injection is based on understanding SQL queries rather than m
 User input should never be trusted.
 
 Small changes in the WHERE clause can completely change the query result.
+
+---
+
+## Screenshots
+
+### Before Exploitation
+
+![Before](screenshots/before.png)
+
+### Burp Request
+
+![Burp Request](screenshots/burp-request.png)
+
+### Result
+
+![Result](screenshots/success.png)
 
 
