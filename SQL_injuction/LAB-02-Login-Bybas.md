@@ -1,4 +1,4 @@
-# LAB 02 - Retrieving Hidden Data
+# LAB 02 - Login Baybas
 
 ## Lab Information
 
@@ -84,3 +84,17 @@ User input should never be trusted.
 Small changes in the WHERE clause can completely change the query result.
 
 ---
+
+## Screenshots
+
+### Before Exploitation
+
+![Before](screenshots/before-lab2.png)
+
+### Burp Request
+
+![Burp Request](screenshots/burp-request-lab2.png)
+
+### Result
+
+![Result](screenshots/success-lab2.png)
