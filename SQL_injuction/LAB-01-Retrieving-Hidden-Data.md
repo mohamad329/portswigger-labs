@@ -24,6 +24,7 @@ The objective of this lab is to exploit a SQL Injection vulnerability to retriev
 ## Vulnerability Overview
 
 SQL Injection occurs when user-controlled input is embedded directly into an SQL query without proper parameterization. In this lab, the application failed to sanitize the category parameter, allowing an attacker to inject SQL code that altered the WHERE clause. As a result, the query returned hidden products that should not have been accessible.
+
 ---
 
 ## Methodology
@@ -47,16 +48,19 @@ SQL Injection occurs when user-controlled input is embedded directly into an SQL
 ## Why It Worked
 
 This payload (SQL injection) succeeds when the application incorporates user input directly into the backend query without sanitization or validation, tricking the database into executing a condition that is always true.
+
 ---
 
 ## Impact
 
 An attacker can retrieve hidden data that should not be accessible to normal users.
+
 ---
 
 ## Root Cause
 
 The application directly concatenates user input into the SQL query without using parameterized queries.
+
 ---
 
 ## Remediation
