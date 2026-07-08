@@ -1,9 +1,9 @@
-# LAB 02 - Login Bypass
+# LAB 03 - Querying The Database Type And Version On Oracle
 
 ## Lab Information
 
 - **Category:** SQL Injection
-- **Difficulty:** Apprentice
+- **Difficulty:** PRACTITIONER
 - **Status:** ✅ Solved
 - **Date:** 2026-7-7
 
