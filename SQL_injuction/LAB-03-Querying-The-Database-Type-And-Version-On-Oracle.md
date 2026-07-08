@@ -3,7 +3,7 @@
 ## Lab Information
 
 - **Category:** SQL Injection
-- **Difficulty:** PRACTITIONER
+- **Difficulty:** Practitioner
 - **Status:** ✅ Solved
 - **Date:** 2026-7-7
 
