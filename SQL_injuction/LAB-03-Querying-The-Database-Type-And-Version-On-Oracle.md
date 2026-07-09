@@ -30,38 +30,37 @@ In this lab , we combine two queries using UNION to retrieve information about t
 
 ## Methodology
 
-1. Browse to the login page.
-2. Intercept the login request using Burp Suite.
-3. Identify the username and password parameters.
-4. Inject a SQL payload into the username field.
-5. Submit the request.
-6. Successfully authenticate as the administrator.
+1. Browse to the category page.
+2. Intercepting the product page using Burp Suite.
+3. Inject a SQL payload into the category field.
+4. Submit the request.
+5. Retrieving information and generating the database within the request.
 
 ---
 
 ## Payload Used
 
 ```sql
-' OR 1=1--
+'UNION+SELECT+BANNER,NULL+FROM+v$version--
 ```
 
 ---
 
 ## Why It Worked
 
-The payload terminated the original SQL string and commented out the password check. As a result, the database authenticated the request as the administrator without verifying the password.
+The payload terminated merge two queries the first concerning the item and the second concerning database version information provided that the number of columns in both queries is equal.
 
 ---
 
 ## Impact
 
-An attacker can authenticate as another user without knowing valid credentials, potentially gaining unauthorized access to sensitive functionality.
+An attacker can access information about the database version, enabling them to identify vulnerabilities associated with the specific database type and version.
 
 ---
 
 ## Root Cause
 
-The application directly concatenated the username input into the authentication query without using parameterized statements.
+Failure of the application to sanitize and separate user inputs from underlying database commands.
 
 ---
 
@@ -80,10 +79,11 @@ The application directly concatenated the username input into the authentication
 
 ## Lessons Learned
 
-- Login forms can also be vulnerable to SQL Injection.
-- SQL Injection is not limited to retrieving data.
-- Authentication logic should never trust user input.
-- Parameterized queries are essential for secure authentication.
+- Separating data from commands: Mandatory reliance on prepared statements to prevent user input from being executed as code.
+- Restricting account privileges: Blocking the application account's access to sensitive system tables and applying the principle of least privilege.
+- Error message masking: Preventing database error details from being displayed to the end-user and replacing them with standardized, generic messages.
+- Automating Security Scanning: Integrating automated scanning tools (SAST/DAST) into the development environment to detect injection vulnerabilities before code deployment.
+- Implementing layered defense: Using a Web Application Firewall (WAF) to immediately detect and block injection attempts and suspicious patterns.
 
 ---
 
@@ -93,21 +93,17 @@ The application likely executed the following SQL query:
 
 ```sql
 SELECT *
-FROM users
-WHERE username='administrator'
-AND password='password';
+FROM product
+WHERE category='gift'
+
 ```
 
 After SQL injection:
 
 ```sql
-SELECT *
-FROM users
-WHERE username='administrator'--'
-AND password='password';
-```
+SELECT * FROM product WHERE category='gift' UNION SELECT BANNER FROM version
 
-The comment sequence (`--`) caused the password check to be ignored, allowing authentication without a valid password.
+```
 
 ---
 
