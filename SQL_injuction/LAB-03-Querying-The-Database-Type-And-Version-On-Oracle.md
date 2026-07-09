@@ -1,4 +1,4 @@
-# LAB 03 - Querying The Database Type And Version On Oracle
+# LAB 03 - Querying Database Type and Version (Oracle)
 
 ## Lab Information
 
@@ -17,38 +17,36 @@
 
 ## Objective
 
-The objective of this lab is to exploit a SQL Injection vulnerability to find information about the Oracle database version.
+The objective of this lab is to exploit a UNION-based SQL Injection vulnerability to identify the database type and retrieve the Oracle database version.
 
 ---
 
 ## Vulnerability Overview
 
-SQL Injection occurs when user-controlled input is embedded directly into an SQL query without proper parameterization.
-In this lab , we combine two queries using UNION to retrieve information about the database version, provided that the number of columns in both queries is equal..
+In this lab, a UNION-based SQL Injection was used to combine the original query with a malicious query in order to retrieve information from the Oracle database. Both SELECT statements must return the same number of columns and compatible data types.
 
 ---
 
 ## Methodology
 
-1. Browse to the category page.
-2. Intercepting the product page using Burp Suite.
-3. Inject a SQL payload into the category field.
-4. Submit the request.
-5. Retrieving information and generating the database within the request.
-
+1. Browse to the vulnerable category page.
+2. Intercept the HTTP request using Burp Suite.
+3. Identify the vulnerable category parameter.
+4. Inject a UNION SELECT payload.
+5. Retrieve the Oracle database version from the v$version table.
 ---
 
 ## Payload Used
 
 ```sql
-'UNION+SELECT+BANNER,NULL+FROM+v$version--
+' UNION SELECT BANNER,NULL FROM v$version--
 ```
 
 ---
 
 ## Why It Worked
 
-The payload terminated merge two queries the first concerning the item and the second concerning database version information provided that the number of columns in both queries is equal.
+The payload terminated the original SQL query and appended a UNION SELECT statement. Because both queries returned the same number of columns with compatible data types, Oracle combined the results and returned the database version from the v$version table.
 
 ---
 
@@ -60,7 +58,7 @@ An attacker can access information about the database version, enabling them to 
 
 ## Root Cause
 
-Failure of the application to sanitize and separate user inputs from underlying database commands.
+The application directly concatenated user-controlled input into the SQL query without using parameterized statements, allowing attackers to inject arbitrary SQL commands.
 
 ---
 
@@ -79,32 +77,44 @@ Failure of the application to sanitize and separate user inputs from underlying 
 
 ## Lessons Learned
 
-- Separating data from commands: Mandatory reliance on prepared statements to prevent user input from being executed as code.
-- Restricting account privileges: Blocking the application account's access to sensitive system tables and applying the principle of least privilege.
-- Error message masking: Preventing database error details from being displayed to the end-user and replacing them with standardized, generic messages.
-- Automating Security Scanning: Integrating automated scanning tools (SAST/DAST) into the development environment to detect injection vulnerabilities before code deployment.
-- Implementing layered defense: Using a Web Application Firewall (WAF) to immediately detect and block injection attempts and suspicious patterns.
+- UNION-based SQL Injection requires the same number of columns.
+- Data types of the selected columns must be compatible.
+- Oracle stores version information in the v$version table.
+- Database fingerprinting is often the first step before further exploitation.
 
 ---
 
-## Authentication Query
+## SQL Query Analysis
 
 The application likely executed the following SQL query:
 
 ```sql
-SELECT *
-FROM product
-WHERE category='gift'
+SELECT name,description
+FROM products
+WHERE category='Gifts';
 
 ```
 
 After SQL injection:
 
 ```sql
-SELECT * FROM product WHERE category='gift' UNION SELECT BANNER FROM version
+SELECT name,description
+FROM products
+WHERE category=''
+UNION
+SELECT BANNER,NULL
+FROM v$version--;
 
 ```
 
+---
+
+## Database Specific Notes
+
+- Database: Oracle
+- Version Table: v$version
+- Version Column: BANNER
+  
 ---
 
 ## Screenshots
