@@ -111,12 +111,12 @@ SELECT * FROM product WHERE category='gift' UNION SELECT BANNER FROM version
 
 ### Before Exploitation
 
-![Before](screenshots/before-lab2.png)
+![Before](screenshots/before-lab3.png)
 
 ### Burp Request
 
-![Burp Request](screenshots/burp-request-lab2.png)
+![Burp Request](screenshots/burp-request-lab3.png)
 
 ### Result
 
-![Result](screenshots/success-lab2.png)
+![Result](screenshots/success-lab3.png)
