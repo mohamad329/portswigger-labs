@@ -1,4 +1,4 @@
-# LAB 04 - Querying Database Type and Version ( MY SQL and Microsoft )
+# LAB 04 - Querying Database Type and Version (MySQL & Microsoft SQL Server)
 
 ## Lab Information
 
@@ -17,13 +17,12 @@
 
 ## Objective
 
-The objective of this lab is to exploit a UNION-based SQL Injection vulnerability to identify the database type and retrieve the My SQl and Microsoft database version.
-
+The objective of this lab is to exploit a UNION-based SQL Injection vulnerability to identify whether the back-end database is MySQL or Microsoft SQL Server and retrieve its version information.
 ---
 
 ## Vulnerability Overview
 
-In this lab, a UNION-based SQL Injection was used to combine the original query with a malicious query in order to retrieve information from the My SQL database. Both SELECT statements must return the same number of columns and compatible data types.
+In this lab, a UNION-based SQL Injection vulnerability was exploited to retrieve the database version. The application could be using either MySQL or Microsoft SQL Server, both of which support the @@version variable. By combining the original query with a malicious UNION SELECT statement, version information was successfully retrieved.
 
 ---
 
@@ -33,7 +32,7 @@ In this lab, a UNION-based SQL Injection was used to combine the original query 
 2. Intercept the HTTP request using Burp Suite.
 3. Identify the vulnerable category parameter.
 4. Inject a UNION SELECT payload.
-5. Retrieve the My SQL database version from the @@version table.
+5. Retrieve the database version using the @@version variable.
 ---
 
 ## Payload Used
@@ -41,12 +40,14 @@ In this lab, a UNION-based SQL Injection was used to combine the original query 
 ```sql
 ' UNION SELECT @@version,NULL#
 ```
+(#) is used as the comment character in MySQL.
 
 ---
 
 ## Why It Worked
 
 The payload terminated the original SQL query and appended a UNION SELECT statement. Because both queries returned the same number of columns with compatible data types, My SQL combined the results and returned the database version from the @@version table.
+The @@version system variable stores the version information for both MySQL and Microsoft SQL Server.
 
 ---
 
@@ -81,6 +82,7 @@ The application directly concatenated user-controlled input into the SQL query w
 - Data types of the selected columns must be compatible.
 - My SQL stores version information in the @@version table.
 - Database fingerprinting is often the first step before further exploitation.
+- Different database systems expose version information using different system variables or tables.
 
 ---
 
@@ -102,7 +104,7 @@ SELECT name,description
 FROM products
 WHERE category=''
 UNION
-SELECT @@version,NULL#;
+SELECT @@version,NULL#
 
 
 ```
@@ -111,9 +113,18 @@ SELECT @@version,NULL#;
 
 ## Database Specific Notes
 
-- Database: My SQL
-- Version Table: @@version
+- Database: MySQL / Microsoft SQL Server
+- Version Variable: @@version
+- Comment Syntax Used: #
   
+---
+
+## Key Takeaways
+
+- UNION SELECT requires matching columns.
+- @@version works on MySQL and Microsoft SQL Server.
+- Database fingerprinting helps identify DBMS-specific attack techniques.
+
 ---
 
 ## Screenshots
