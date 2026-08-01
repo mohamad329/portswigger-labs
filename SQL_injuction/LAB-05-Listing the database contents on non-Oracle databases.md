@@ -18,11 +18,13 @@
 ## Objective
 
 The objective of this lab is to exploit a UNION-based SQL Injection vulnerability to enumerate the database structure, extract user credentials, and use the administrator's credentials to successfully authenticate.
+
 ---
 
 ## Vulnerability Overview
 
 The attack relied on querying the database metadata stored in the information_schema database before extracting sensitive data from the application tables.
+
 ---
 
 ## Methodology
