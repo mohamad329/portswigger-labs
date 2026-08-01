@@ -164,9 +164,9 @@ SELECT password_gfsbxm,username_ldmcrc FROM users_echoye--
 
 ![Burp Request](screenshots/burp-request-lab5.png)
 
-![Burp Request](screenshots/burp-request-lab5(1).png)
-
 ![Burp Request](screenshots/burp-request-lab5(2).png)
+
+![Burp Request](screenshots/burp-request-lab5(3).png)
 
 
 ### Result
