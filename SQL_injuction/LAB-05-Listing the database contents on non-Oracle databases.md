@@ -17,13 +17,12 @@
 
 ## Objective
 
-The objective of this lab is to exploit a UNION-based SQL Injection vulnerability to access user information and passwords, and to log in as the administrator.
+The objective of this lab is to exploit a UNION-based SQL Injection vulnerability to enumerate the database structure, extract user credentials, and use the administrator's credentials to successfully authenticate.
 ---
 
 ## Vulnerability Overview
 
-In this lab, a UNION-based SQL injection vulnerability was exploited to extract user information from a non-Oracle database; by combining the original query with a malicious `UNION SELECT` statement, it was possible to extract the administrator's information.
-
+The attack relied on querying the database metadata stored in the information_schema database before extracting sensitive data from the application tables.
 ---
 
 ## Methodology
@@ -32,8 +31,8 @@ In this lab, a UNION-based SQL injection vulnerability was exploited to extract 
 2. Intercept the HTTP request using Burp Suite.
 3. Identify the vulnerable category parameter.
 4. Inject a UNION SELECT payload.
-5. Determine the users table name using the `table_name` variable from the `information_schema.tables` database.
-6. Injecting a UNION SELECT payload to discover column names using `column_name` from the `information_schema.columns` table.
+5. Determine the users table name using the table_name column from the information_schema.tables system table.
+6. Determine the users column name using the colmun_name column from the information_schema.tables system table.
 7. Inject a UNION SELECT payload to retrieve all passwords and usernames from the users table.
 ---
 
@@ -56,7 +55,7 @@ In this lab, a UNION-based SQL injection vulnerability was exploited to extract 
 
 ## Why It Worked
 
-The payload completed the original SQL query and appended a `UNION SELECT` statement. Since both queries returned the same number of columns with compatible data types, MySQL merged the results, returning table names first, followed by column names; ultimately, by leveraging the table name and its columns, we were able to retrieve password and username information.
+The attack first enumerated the database metadata to discover table names, then identified column names, and finally extracted sensitive data from the discovered table.
 
 ---
 
@@ -87,7 +86,10 @@ The application directly concatenated user-controlled input into the SQL query w
 
 ## Lessons Learned
 
-Database enumeration is a step-by-step process. Attackers do not guess table or column names; they retrieve metadata from the database's information schema and use it to locate sensitive information.
+- Database enumeration should always precede data extraction.
+- Metadata stored in information_schema provides valuable information about database objects.
+- Sensitive tables and columns can be identified without guessing their names.
+- UNION-based SQL Injection can lead to complete database disclosure.
 
 ---
 
@@ -109,7 +111,7 @@ SELECT name,description
 FROM products
 WHERE category=''
 UNION
-SELECT table_name,NULL FROM information_schema.tables WGERE table_schema='public'--
+SELECT table_name,NULL FROM information_schema.tables WHERE table_schema='public'--
 
 
 ```
@@ -119,7 +121,7 @@ SELECT name,description
 FROM products
 WHERE category=''
 UNION
-SELECT table_column,NULL FROM information_schema.columns WGERE table_name='users_echoye'--
+SELECT column_name,NULL FROM information_schema.columns WHERE table_name='users_echoye'--
 
 
 ```
@@ -139,8 +141,8 @@ SELECT password_gfsbxm,username_ldmcrc FROM users_echoye--
 
 ## Database Specific Notes
 
-- Database: MySQL / Microsoft SQL Server
-- Users table name: user_echoye
+- Database: Non-Oracle (information_schema)
+- Users table name: users_echoye
 - Password and username column names : password_gfsbxm,username_ldmcrc
 - Comment Syntax Used: --
   
@@ -149,8 +151,20 @@ SELECT password_gfsbxm,username_ldmcrc FROM users_echoye--
 ## Key Takeaways
 
 - UNION SELECT requires matching columns.
-- information_schema it stores database system information, such as table and column names.
+- The information_schema database stores metadata about tables, columns, and other database objects.
 - Database fingerprinting helps identify DBMS-specific attack techniques.
+
+---
+
+## Attack Flow
+
+1. Identify SQL Injection.
+2. Determine the number of columns.
+3. Verify UNION compatibility.
+4. Enumerate database tables.
+5. Enumerate table columns.
+6. Extract sensitive data.
+7. Use the extracted credentials.
 
 ---
 
