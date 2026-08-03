@@ -28,11 +28,21 @@ A stored Cross-Site Scripting (XSS) vulnerability occurs When a website accepts 
 
 ---
 
+# XSS Type Comparison
+
+| Reflected XSS | Stored XSS |
+|---------------|------------|
+| Payload is reflected immediately. | Payload is stored on the server. |
+| Requires victim to open a crafted URL. | Executes whenever users view the stored content. |
+| Usually affects one request. | Can affect many users. |
+
+---
+
 # Attack Prerequisites
 
-- User input is reflected in the HTTP response.
-- Input is not HTML encoded.
-- JavaScript execution is allowed.
+- The application stores user input on the server.
+- Stored data is displayed to users without output encoding.
+- JavaScript execution is allowed in the browser.
 
 ---
 
@@ -47,12 +57,13 @@ A stored Cross-Site Scripting (XSS) vulnerability occurs When a website accepts 
 
 # Methodology
 
-1. Browse to the vulnerable page.
-2. Determining the suspension coefficient
+1. Browse to the vulnerable blog post.
+2. Submit a comment.
 3. Test HTML injection.
-4. Confirm that HTML is not encoded.
-5. Inject JavaScript.
-6. Observe successful execution.
+4. Confirm that the input is stored.
+5. Inject a JavaScript payload.
+6. Reload the page.
+7. Observe JavaScript execution.
 
 ---
 
@@ -77,29 +88,31 @@ comment
 
 # Why It Worked
 
-The application reflected user input directly into the HTML response without encoding special characters. When the browser parsed the HTML document, it interpreted the injected `<script>` element as executable JavaScript and executed it.
+The application stored user input on the server and later included it in the HTML response without output encoding. When another user viewed the page, the browser interpreted the injected <script> element and executed the JavaScript.
 
 ---
 
 # Exploitation Flow
 
-```
 Attacker
       │
       ▼
-Inject Payload
+Submit Malicious Comment
       │
       ▼
 Web Server
       │
-Returns HTML
+Stores Payload
+      │
+      ▼
+Victim Requests Page
+      │
+      ▼
+Server Returns Stored Payload
       │
       ▼
 Victim Browser
       │
-Parses HTML
-      │
-      ▼
 Executes JavaScript
 ```
 
@@ -119,7 +132,7 @@ Executing malicious JavaScript code can lead to
 
 # Root Cause
 
-The application reflects user-controlled input into the HTML response without proper output encoding or sanitization.
+The application stores user-controlled input and later renders it without proper output encoding or sanitization.
 
 ---
 
@@ -129,7 +142,7 @@ The application reflects user-controlled input into the HTML response without pr
 - Input Validation : The process of verifying and confirming that input data meets the required criteria, is secure, and is in the correct format before being processed by the system.
 - Content Security Policy (CSP) : A web security standard that enables website owners to control the resources a browser is permitted to load and execute.
 - HttpOnly Cookies : A special type of cookie that cannot be accessed by JavaScript code.
-- Secure Frameworks : Use frameworks that automatically escape HTML output.
+- Use templating engines that automatically perform context-aware output encoding.
 ---
 
 # Lessons Learned
@@ -144,19 +157,19 @@ The application reflects user-controlled input into the HTML response without pr
 # Attack Flow Summary
 
 ```
-Find Reflection
-        │
-        ▼
-Check Encoding
-        │
-        ▼
-Inject HTML
-        │
-        ▼
-Inject JavaScript
-        │
-        ▼
-Browser Executes Code
+Submit Comment
+      │
+      ▼
+Store Payload
+      │
+      ▼
+Retrieve Stored Content
+      │
+      ▼
+Browser Parses HTML
+      │
+      ▼
+Execute JavaScript
 ```
 
 ---
@@ -166,27 +179,28 @@ Browser Executes Code
 Show the response before injection.
 
 ```html
-You searched for:
+Comment:
 
-TEST
+Hello 
+
 ```
 
 Show the response after injection.
 
 ```html
-You searched for:
+Comment:
 
 <script>alert(1)</script>
 ```
 
-The payload was reflected into the HTML response exactly as supplied. Since no output encoding was applied, the browser interpreted the <script> element and executed the JavaScript code.
+The comment was stored in the database and then displayed.
 
 ---
 
 # Security Notes
 
 The payload executes because the browser trusts the HTML document returned by the server.
-Search results must be safely encoded before being rendered.
+Stored user-generated content must always be safely encoded before being rendered in HTML.
 
 ---
 
@@ -196,6 +210,7 @@ Search results must be safely encoded before being rendered.
 - HTML Context determines payload behavior.
 - Browsers execute JavaScript—not web servers.
 - Output encoding is the primary defense.
+- Stored XSS is generally more dangerous than Reflected XSS because the malicious payload is executed automatically whenever another user views the affected page.
 
 ---
 
