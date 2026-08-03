@@ -18,13 +18,13 @@
 
 # Objective
 
-The goal of this lab is to inject JavaScript code directly into HTML code without any encoding.
+The objective of this lab is to exploit a reflected Cross-Site Scripting (XSS) vulnerability by injecting JavaScript into an HTML response that is returned without output encoding.
 
 ---
 
 # Vulnerability Overview
 
-A Cross-Site Scripting (XSS) vulnerability involves injecting malicious JavaScript code for the victim's browser to execute. This vulnerability occurs when the server sends data directly to the browser without any encoding. In this lab, we encounter a "Reflected" XSS vulnerability, where the server transmits data for the browser to execute without encoding it.
+A reflected Cross-Site Scripting (XSS) vulnerability occurs when user-controlled input is included in the HTML response without proper output encoding, allowing the browser to interpret the input as executable code.
 
 ---
 
@@ -109,7 +109,7 @@ Executes JavaScript
 
 Executing malicious JavaScript code can lead to
 - Session hijacking
-- Cookie theft
+- - Cookie theft (if cookies are not protected with HttpOnly)
 - Credential theft
 - Phishing
 - Defacement
@@ -119,7 +119,7 @@ Executing malicious JavaScript code can lead to
 
 # Root Cause
 
-Sending data directly from the server to the browser without filtering or encryption, which allows an attacker to execute malicious JavaScript code.
+The application reflects user-controlled input into the HTML response without proper output encoding or sanitization.
 
 ---
 
@@ -129,13 +129,10 @@ Sending data directly from the server to the browser without filtering or encryp
 - Input Validation : The process of verifying and confirming that input data meets the required criteria, is secure, and is in the correct format before being processed by the system.
 - Content Security Policy (CSP) : A web security standard that enables website owners to control the resources a browser is permitted to load and execute.
 - HttpOnly Cookies : A special type of cookie that cannot be accessed by JavaScript code.
-- Secure Frameworks : An organized set of standards, policies, procedures, and best practices used by companies to protect their data and systems from cyber risks.
-
+- Secure Frameworks : Use frameworks that automatically escape HTML output.
 ---
 
 # Lessons Learned
-
-Explain what YOU learned.
 
 - Browsers execute JavaScript inside `<script>` tags.
 - HTML encoding prevents browser interpretation.
@@ -182,14 +179,14 @@ You searched for:
 <script>alert(1)</script>
 ```
 
-The browser executed the JavaScript code directly, without encoding or ignoring it.
+The payload was reflected into the HTML response exactly as supplied. Since no output encoding was applied, the browser interpreted the <script> element and executed the JavaScript code.
 
 ---
 
 # Security Notes
 
 The payload executes because the browser trusts the HTML document returned by the server.
-Search inputs must be filtered.
+Search results must be safely encoded before being rendered.
 
 ---
 
@@ -199,6 +196,20 @@ Search inputs must be filtered.
 - HTML Context determines payload behavior.
 - Browsers execute JavaScript—not web servers.
 - Output encoding is the primary defense.
+
+---
+
+## Context Analysis
+
+Injection Context: HTML Body
+
+HTML Encoding: None
+
+JavaScript Execution: Allowed
+
+Payload Type: Script Injection
+
+Reflection Type: Immediate (Reflected)
 
 ---
 
