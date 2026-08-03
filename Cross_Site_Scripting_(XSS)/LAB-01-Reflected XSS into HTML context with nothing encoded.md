@@ -206,16 +206,18 @@ Search inputs must be filtered.
 
 ## Initial Page
 
-
-
-...
+![Test](Screen-Shots/test-lab1.png)
 
 ...
 
 ## Payload Injection
 
+![Injuction](Screen-Shots/injuct-lab1.png)
+
 ...
 
 ## Successful Alert
+
+![Success](Screen-Shots/success-lab1.png)
 
 ...
