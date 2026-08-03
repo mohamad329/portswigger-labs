@@ -34,7 +34,7 @@ This repository contains my notes and write-ups while solving labs from PortSwig
 
 | Category | Status |
 |----------|--------|
-| SQL Injection | ⏳ |
+| SQL Injection | ✅ |
 | XSS | ⏳ |
 | CSRF | ⏳ |
 | Authentication | ⏳ |
