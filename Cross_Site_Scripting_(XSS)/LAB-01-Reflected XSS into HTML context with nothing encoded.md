@@ -1,12 +1,12 @@
-# LAB XX - Lab Name
+# LAB 01 - Reflected XSS into HTML context with nothing encoded
 
 ## Lab Information
 
 - **Category:** Cross-Site Scripting (XSS)
-- **Type:** Reflected / Stored / DOM
+- **Type:** Reflected 
 - **Difficulty:** Apprentice
 - **Status:** ✅ Solved
-- **Date:** YYYY-MM-DD
+- **Date:** 2026-8-3
 
 ---
 
@@ -18,25 +18,17 @@
 
 # Objective
 
-Describe the purpose of the lab in one or two sentences.
+The goal of this lab is to inject JavaScript code directly into HTML code without any encoding.
 
 ---
 
 # Vulnerability Overview
 
-Explain:
-
-- What is XSS?
-- Why does it happen?
-- Why is this lab vulnerable?
+A Cross-Site Scripting (XSS) vulnerability involves injecting malicious JavaScript code for the victim's browser to execute. This vulnerability occurs when the server sends data directly to the browser without any encoding. In this lab, we encounter a "Reflected" XSS vulnerability, where the server transmits data for the browser to execute without encoding it.
 
 ---
 
 # Attack Prerequisites
-
-Before exploitation, what conditions must exist?
-
-Example:
 
 - User input is reflected in the HTTP response.
 - Input is not HTML encoded.
@@ -45,10 +37,6 @@ Example:
 ---
 
 # Browser Behavior
-
-Explain what the browser does.
-
-Example:
 
 1. Browser receives HTML.
 2. Browser parses HTML.
@@ -74,15 +62,20 @@ Example:
 <script>alert(1)</script>
 ```
 
-Explain why this payload works.
+The browser was executing
+
+```html
+<section class="blog-header">
+0 results for '
+<h1>
+<script>alert(1)</script>
+</h1>
+</section>
+```
 
 ---
 
 # Why It Worked
-
-Explain the root technical reason.
-
-Example:
 
 The application reflected user input directly into the HTML response without encoding special characters. When the browser parsed the HTML document, it interpreted the injected `<script>` element as executable JavaScript and executed it.
 
@@ -114,10 +107,7 @@ Executes JavaScript
 
 # Impact
 
-Explain realistic impact.
-
-Example:
-
+Executing malicious JavaScript code can lead to
 - Session hijacking
 - Cookie theft
 - Credential theft
@@ -129,27 +119,23 @@ Example:
 
 # Root Cause
 
-Explain exactly why the vulnerability exists.
+Sending data directly from the server to the browser without filtering or encryption, which allows an attacker to execute malicious JavaScript code.
 
 ---
 
 # Remediation
 
-- Output Encoding
-- Input Validation
-- Content Security Policy (CSP)
-- HttpOnly Cookies
-- Secure Frameworks
-
-Explain each one briefly.
+- Output Encoding : is a security technique that converts unsafe data into a safe, plain format before displaying it to the user. Its goal is to prevent the browser from executing malicious code and to protect websites against injection attacks, such as Cross-Site Scripting (XSS).
+- Input Validation : The process of verifying and confirming that input data meets the required criteria, is secure, and is in the correct format before being processed by the system.
+- Content Security Policy (CSP) : A web security standard that enables website owners to control the resources a browser is permitted to load and execute.
+- HttpOnly Cookies : A special type of cookie that cannot be accessed by JavaScript code.
+- Secure Frameworks : An organized set of standards, policies, procedures, and best practices used by companies to protect their data and systems from cyber risks.
 
 ---
 
 # Lessons Learned
 
 Explain what YOU learned.
-
-For example:
 
 - Browsers execute JavaScript inside `<script>` tags.
 - HTML encoding prevents browser interpretation.
@@ -196,17 +182,14 @@ You searched for:
 <script>alert(1)</script>
 ```
 
-Explain exactly what changed.
+The browser executed the JavaScript code directly, without encoding or ignoring it.
 
 ---
 
 # Security Notes
 
-Explain one or two important security concepts learned in this lab.
-
-Example:
-
 The payload executes because the browser trusts the HTML document returned by the server.
+Search inputs must be filtered.
 
 ---
 
