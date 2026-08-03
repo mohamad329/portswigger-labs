@@ -206,9 +206,9 @@ Search inputs must be filtered.
 
 ## Initial Page
 
-...
 
-## Burp Request
+
+...
 
 ...
 
