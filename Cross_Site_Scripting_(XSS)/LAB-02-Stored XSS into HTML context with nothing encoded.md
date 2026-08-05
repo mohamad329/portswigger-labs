@@ -92,8 +92,9 @@ The application stored user input on the server and later included it in the HTM
 
 ---
 
-# Exploitation Flow
 
+# Exploitation Flow
+```
 Attacker
       │
       ▼
@@ -113,9 +114,9 @@ Server Returns Stored Payload
       ▼
 Victim Browser
       │
+      ▼
 Executes JavaScript
 ```
-
 ---
 
 # Impact
@@ -216,15 +217,15 @@ Stored user-generated content must always be safely encoded before being rendere
 
 ## Context Analysis
 
-Injection Context: HTML Body
+- **Injection Context:** HTML Body
 
-HTML Encoding: None
+- **HTML Encoding:** None
 
-JavaScript Execution: Allowed
+- **JavaScript Execution:** Allowed
 
-Payload Type: Script Injection
+- **Payload Type:** Script Injection
 
-Reflection Type: Stored
+- **Reflection Type:** Stored
 
 ---
 
