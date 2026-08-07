@@ -42,82 +42,127 @@
 
 # Executive Summary
 
-In this lab, a DOM based XSS vulnerability was exploited by closing the image's existing attributes and injecting a new attribute containing an `onerror` event handler to trigger the payload a technique known as exploiting an HTML attribute context.
-Exploiting DOM based XSS allows for the execution of malicious JavaScript within the victim's browser, granting the attacker full control over what the user sees or does on the page; this can lead to session theft, page content modification, redirection, and the execution of actions on the user's behalf. In this specific lab, I demonstrated this control by displaying a message using the `alert()` function.
+In this lab, a DOM-based XSS vulnerability was identified in which attacker-controlled input from `location.search` flowed into the `document.write()` sink. By breaking out of the HTML attribute context and injecting an `<img>` element with an `onerror` event handler, JavaScript execution was demonstrated using `alert(1)`.
 
 ---
 
 # Objective
 
-The goal of this lab is to exploit a DOM based XSS vulnerability, where the payload is stored within the JavaScript code executed by the browser.
+The objective of this lab is to exploit a DOM-based XSS vulnerability caused by the unsafe flow of attacker-controlled data from `location.search` (source) to `document.write()` (sink).
 
 ---
 
 # Vulnerability Overview
 
 A DOM-based XSS (Document Object Model-based Cross-Site Scripting) vulnerability is a type of security flaw that occurs entirely within the user's browser on the client side. It happens when JavaScript code takes data from an attacker-controllable source and passes it—unsanitized—to a dangerous function that executes code (a "sink").
-The vulnerability arises when three key elements are present in the page's code: the source, the data flow and processing, and the dangerous destination or sink.
+The vulnerability arises when three key elements are present in the page's code: the source, the data flow and processing, and the dangerous destination or sink In this lab, the attacker-controlled input originates from `location.search` and is passed to `document.write()`, which writes the data into the HTML document without proper encoding.
 
 ---
 
 # Attack Prerequisites
 
-- JavaScript code that reads data modified by an attacker, such as the current page URL (`window.location`), query parameters (`window.location.search`), or the URL hash (`location.hash`).
-- A JavaScript function that executes code or injects it into an HTML page—such as `eval()` or `document.write()`—or the insecure use of the `innerHTML` property.
-- Transferring data from the source to the executing function without performing any validation or sanitization.
+- A client-side JavaScript source that can be controlled by the attacker, such as `location.search`.
+- An unsafe sink such as `document.write()` that inserts attacker-controlled data into the HTML document.
+- No effective output encoding or sanitization between the source and sink.
 
 ---
 
 # Environment & Scope
 
-| Item | Value |
-|------|-------|
-| Target | Web page |
-| Endpoint | An alert message appears |
-| HTTP Method | GET |
-| Parameter | Search field |
-| Injection Context | HTML |
-| Technologies | Browser |
+| Item              | Value |
+|-------------------|-------|
+| Target            | PortSwigger Web Security Academy lab |
+| HTTP Method       | GET |
+| Source            | `location.search` |
+| Sink              | `document.write()` |
+| Injection Context | HTML Attribute |
+| Client            | Web Browser |
 
 ---
 
 # Methodology
 
-- Conducting the test within the research field.
-- Launch the page's "Inspect" tool to review the code.
-- Determining the injection site.
-- Injecting the payload into HTML code.
-- Verifying the success of the operation.
+1. Open the vulnerable lab and identify the search functionality.
+2. Submit a normal search term and observe how it is reflected in the page.
+3. Inspect the client-side JavaScript using browser Developer Tools.
+4. Identify `location.search` as the attacker-controlled source.
+5. Trace the data flow to the `document.write()` sink.
+6. Identify the HTML attribute context created by `document.write()`.
+7. Break out of the existing attribute context.
+8. Inject an `<img>` element with an `onerror` event handler.
+9. Verify JavaScript execution using `alert()`.
 
 ---
 
 # Discovery Process
 
-- mohamad
-- mohamad ">
-- mohamad "> <img src="x" onerror="alert(mohamad)>
+### Step 1 — Normal Input
+
+```text
+mohamad
+```
+
+The application reflected the search term into an HTML attribute.
+
+### Step 2 — Context Testing
+
+```text
+mohamad">
+```
+
+The quotation mark allowed the existing attribute context to be terminated.
+
+### Step 3 — HTML Injection
+
+```html
+mohamad"><img src="x" onerror="alert(1)">
+```
+
+The injected <img> element was interpreted as HTML, and the onerror handler executed when the image failed to load.
 
 ---
 
 # Technical Analysis
 
-Show the response before injection.
+The application reads the query string through `location.search` and passes the resulting value to `document.write()`.
+
+The generated HTML initially contains:
 
 ```html
-search:
-
 <img src="/resources/images/tracker.gif?searchTerms=mohamad">
-
 ```
 
-Show the response after injection.
+After injecting the payload, the browser receives HTML equivalent to:
 
 ```html
 search:
 
 <img src="/resources/images/tracker.gif?searchTerms=">
- <img src="x" onerror="alert(mohamad)">
+<img src="x" onerror="alert(mohamad)">
 ```
+The first double quote closes the original src attribute. The injected <img> element then creates an onerror event handler that executes JavaScript when the image fails to load.
+
+---
+
+# Source and Sink Analysis
+
+## Source
+
+```javascript
+location.search
+```
+The source is attacker-controlled because the attacker can modify the query string in the URL.
+
+## Data Flow
+
+The value from location.search is concatenated into an HTML string.
+
+## Sink
+
+```javascript
+document.write()
+```
+document.write() writes the constructed string into the HTML document, allowing the injected markup to be interpreted by the browser.
 
 ---
 
@@ -133,7 +178,7 @@ search:
 
 ## Why This Payload Works
 
-It closed the first attribute, then opened a new attribute containing an event; the code within that event triggers if the image fails to load.
+The payload first closes the existing `src` attribute using `"`, then closes the original HTML element with `>`. It injects a new `<img>` element with an invalid `src` value. When the browser fails to load the image, the `onerror` event handler is triggered and executes the JavaScript payload.
 
 ---
 
@@ -143,29 +188,32 @@ It closed the first attribute, then opened a new attribute containing an event; 
 Attacker
       │
       ▼
-User Input
+URL Query Parameter
       │
       ▼
-Application
+location.search
       │
       ▼
-Server Processing
+document.write()
       │
       ▼
-HTTP Response
+DOM / HTML
       │
       ▼
-Browser Rendering
+Browser Parses Injected HTML
       │
       ▼
-Payload Execution
+onerror Event
+      │
+      ▼
+JavaScript Execution
 ```
 
 ---
 
 # Evidence
 
-## html Before injuction
+## HTML Before Injection
 
 ```html
 <img src="/resources/images/tracker.gif?searchTerms=mohamad">
@@ -173,7 +221,7 @@ Payload Execution
 
 ---
 
-## html After injuction
+## HTML After Injection
 
 ```http
 <img src="/resources/images/tracker.gif?searchTerms=">
@@ -184,11 +232,12 @@ Payload Execution
 
 # Impact
 
-- **Data theft:** Accessing authentication cookies or tokens to take control of the victim's account.
-- **Performing actions on behalf of the user:** sending messages, purchasing products, or changing the password without the user's knowledge.
-- **Redirection:** Redirecting the user to malicious web pages or phishing sites.
-- **Modifying page content:** Altering the appearance or text of a page to deceive the user or collect their sensitive information.
-
+- Access to sensitive information available to JavaScript.
+- Session compromise in scenarios where session tokens are accessible to JavaScript.
+- Performing unauthorized actions in the victim's security context.
+- Phishing and page manipulation.
+- Redirecting users to malicious pages.
+  
 ---
 
 # Root Cause
@@ -202,9 +251,9 @@ A DOM-based XSS vulnerability occurs when client side JavaScript code takes data
 | Item | Value |
 |------|-------|
 | Severity | Medium |
-| CVSS Score | 5.9 |
+| CVSS Score | Not calculated |
 | CWE | CWE-79 |
-| OWASP Category | A03:2021-Injection |
+| OWASP Category | Cross-Site Scripting (XSS) |
 | Exploitability | High / Easy |
 | Business Impact | Theft of customer accounts and sensitive data , Financial fraud and theft of funds , Reputational damage and loss of trust , Legal Fines and Penalties , Business disruption and incident response costs|
 
@@ -212,20 +261,22 @@ A DOM-based XSS vulnerability occurs when client side JavaScript code takes data
 
 # Remediation
 
-- Output Encoding : is a security technique that converts unsafe data into a safe, plain format before displaying it to the user. Its goal is to prevent the browser from executing malicious code and to protect websites against injection attacks, such as Cross-Site Scripting (XSS).
-- Input Validation : The process of verifying and confirming that input data meets the required criteria, is secure, and is in the correct format before being processed by the system.
-- Content Security Policy (CSP) : A web security standard that enables website owners to control the resources a browser is permitted to load and execute.
-- HttpOnly Cookies : A special type of cookie that cannot be accessed by JavaScript code.
-- Use templating engines that automatically perform context-aware output encoding.
-
+- Avoid dangerous DOM sinks such as `document.write()` when processing untrusted input.
+- Use safe DOM APIs such as `textContent` when inserting text.
+- Apply context-aware output encoding.
+- Validate and sanitize untrusted input where appropriate.
+- Implement a restrictive Content Security Policy (CSP) as an additional defense layer.
+  
 ---
 
 # Lessons Learned
 
-- Browsers execute JavaScript inside `<script>` tags.
-- HTML encoding prevents browser interpretation.
-- XSS targets the client, not the server.
-- Understanding HTML context is essential.
+- DOM XSS can occur entirely on the client side without the server reflecting the payload.
+- `location.search` can act as an attacker-controlled source.
+- `document.write()` can become a dangerous sink when used with untrusted data.
+- The injection context determines how the payload must be constructed.
+- Breaking out of an HTML attribute can allow injection of a new HTML element.
+- Understanding Source → Data Flow → Sink is essential when analyzing DOM-based XSS.
 
 ---
 
@@ -260,8 +311,9 @@ A DOM-based XSS vulnerability occurs when client side JavaScript code takes data
 
 # Conclusion
 
-Ultimately, DOM-based XSS is a browser-targeted vulnerability that executes malicious JavaScript code, potentially leading to session data theft or page defacement. This vulnerability typically arises when client-side JavaScript takes data from attacker-controlled input (known as a "Source") and insecurely passes it to a function or property that executes code within the browser (known as a "Sink"), resulting in the execution of malicious code.
+This lab demonstrated how a DOM-based XSS vulnerability can arise when attacker-controlled data flows from `location.search` to the unsafe `document.write()` sink.
 
+The key lesson was that successful XSS exploitation depends on identifying the injection context and tracing the data flow from source to sink. In this case, breaking out of the HTML attribute context allowed the injection of a new element and execution of JavaScript through an `onerror` event handler.
 
 
 
