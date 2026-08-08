@@ -87,7 +87,7 @@ The vulnerability arises when three key elements are present in the page's code:
 3. Inspect the client-side JavaScript using browser Developer Tools.
 4. Identify `location.search` as the attacker-controlled source.
 5. Trace the data flow to the `innerHTML` sink.
-6. Identify the HTML attribute context created by `document.write()`.
+6. Identify the HTML context created by the `innerHTML` sink.
 7. Inject an `<img>` element with an `onerror` event handler.
 8. Verify JavaScript execution using `alert()`.
 
@@ -101,7 +101,7 @@ The vulnerability arises when three key elements are present in the page's code:
 mohamad
 ```
 
-The application reflected the search term into an HTML Context.
+The search term was passed to the `innerHTML` sink and interpreted as HTML.
 
 
 ### Step 2 — HTML Injection
@@ -109,7 +109,7 @@ The application reflected the search term into an HTML Context.
 ```html
 <img src="x" onerror="alert(1)">
 ```
-We perform direct injection because all search inputs are executed as HTML code.
+The input was directly inserted into the DOM through the `innerHTML` sink without appropriate encoding or sanitization. As a result, HTML markup supplied by the attacker was interpreted by the browser.
 The injected <img> element was interpreted as HTML, and the onerror handler executed when the image failed to load.
 
 ---
@@ -120,16 +120,18 @@ The application reads the query string through `location.search` and passes the 
 
 The generated HTML initially contains:
 
-```html
-<img src="/resources/images/tracker.gif?searchTerms=mohamad">
+```javascript
+<script>
+function doSearchQuery(query) { document.getElementById('searchMessage').innerHTML = query; }  if(query) { doSearchQuery(query); }
+ </script>
 ```
 
-After injecting the payload, the browser receives HTML equivalent to:
+ After the payload was processed by the client-side JavaScript, the affected DOM contained HTML equivalent to:
 
 ```html
 search:
 
-<img src="/resources/images/tracker.gif?searchTerms=">
+var query = (new URLSearchParams(window.location.search)).get('search');
 <img src="x" onerror="alert(1)">
 ```
 We perform direct injection because all search inputs are executed as HTML code. The injected <img> element then creates an onerror event handler that executes JavaScript when the image fails to load.
@@ -153,14 +155,29 @@ if(query) {
 }
 ```
 
-The value from window.location.search is concatenated into an HTML string.
+The value extracted from `window.location.search` is passed through `URLSearchParams`, retrieved using `.get('search')`, and then passed to the `doSearchQuery()` function.
 
 ## Sink
 
 ```javascript
 document.getElementById('searchMessage').innerHTML = query;
 ```
-The `innerHTML` function converts all search inputs into HTML code; therein lies the vulnerability, as it allows us to inject malicious HTML code.
+The `innerHTML` property parses the supplied value as HTML and inserts the resulting nodes into the DOM. Because attacker-controlled input reaches this sink without appropriate sanitization or encoding, an attacker can inject HTML elements containing executable event handlers.
+
+---
+
+# Context Analysis
+
+| Property | Value |
+|---|---|
+| Source | `window.location.search` |
+| Parameter | `search` |
+| Sink | `innerHTML` |
+| Injection Context | HTML Context |
+| Encoding | None |
+| Reflection Type | DOM-based |
+| JavaScript Execution | Possible through injected event handlers |
+| Payload Type | HTML element injection |
 
 ---
 
@@ -184,26 +201,38 @@ We perform direct injection because all search inputs are executed as HTML code.
 
 ```text
 Attacker
-      │
-      ▼
+    │
+    ▼
 URL Query Parameter
-      │
-      ▼
-location.search
-      │
-      ▼
-  innerHTML
-      │
-      ▼
-DOM / HTML
-      │
-      ▼
-Browser Parses Injected HTML
-      │
-      ▼
+    │
+    ▼
+window.location.search
+    │
+    ▼
+URLSearchParams
+    │
+    ▼
+.get('search')
+    │
+    ▼
+query
+    │
+    ▼
+doSearchQuery()
+    │
+    ▼
+innerHTML
+    │
+    ▼
+HTML Parsing
+    │
+    ▼
+Injected <img> Element
+    │
+    ▼
 onerror Event
-      │
-      ▼
+    │
+    ▼
 JavaScript Execution
 ```
 
@@ -222,8 +251,14 @@ var query = (new URLSearchParams(window.location.search)).get('search');
 ## HTML After Injection
 
 ```javascript
-document.getElementById('searchMessage').innerHTML =  <img src="x" onerror="alert(1)">;
+document.getElementById('searchMessage').innerHTML = query;
  ```
+The attacker-controlled value of `query` is assigned directly to `innerHTML`.
+
+```html
+<img src="x" onerror="alert(1)">
+```
+This is the result that has ended up in the DOM.
 
 ---
 
@@ -247,11 +282,11 @@ A DOM-based XSS vulnerability occurs when client side JavaScript code takes data
 
 | Item | Value |
 |------|-------|
-| Severity | Medium |
+| Severity |  Context-dependent |
 | CVSS Score | Not calculated |
-| CWE | CWE-79 |
+| CWE | CWE-79: Improper Neutralization of Input During Web Page Generation |
 | OWASP Category | Cross-Site Scripting (XSS) |
-| Exploitability | High / Easy |
+| Exploitability | Demonstrated in lab |
 | Business Impact | Theft of customer accounts and sensitive data , Financial fraud and theft of funds , Reputational damage and loss of trust , Legal Fines and Penalties , Business disruption and incident response costs|
 
 ---
@@ -263,17 +298,20 @@ A DOM-based XSS vulnerability occurs when client side JavaScript code takes data
 - Apply context-aware output encoding.
 - Validate and sanitize untrusted input where appropriate.
 - Implement a restrictive Content Security Policy (CSP) as an additional defense layer.
+- document.getElementById('searchMessage').textContent = query;   Using `textContent` treats the input as text rather than parsing it as HTML.
+
   
 ---
 
 # Lessons Learned
 
-- DOM XSS can occur entirely on the client side without the server reflecting the payload.
-- `location.search` can act as an attacker-controlled source.
-- `innerHTML` can become a dangerous sink when used with untrusted data.
-- The injection context determines how the payload must be constructed.
-- Understanding Source → Data Flow → Sink is essential when analyzing DOM-based XSS.
-
+- DOM XSS can occur without server-side reflection.
+- `location.search` is an attacker-controlled DOM source.
+- `innerHTML` is dangerous when used with untrusted input.
+- HTML context determines how an XSS payload should be constructed.
+- Tracing Source → Data Flow → Sink is essential when analyzing DOM-based XSS.
+- Safe DOM APIs such as `textContent` should be preferred when inserting untrusted text.
+  
 ---
 
 # References
