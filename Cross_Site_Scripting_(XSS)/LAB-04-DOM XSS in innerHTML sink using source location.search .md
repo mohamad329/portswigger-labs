@@ -62,7 +62,7 @@ The vulnerability arises when three key elements are present in the page's code:
 # Attack Prerequisites
 
 - A client-side JavaScript source that can be controlled by the attacker, such as `location.search`.
-- An unsafe sink such as `document.write()` that inserts attacker-controlled data into the HTML document.
+- An unsafe sink such as `.innerHTML` that inserts attacker-controlled data into the HTML document.
 - No effective output encoding or sanitization between the source and sink.
 
 ---
@@ -74,8 +74,8 @@ The vulnerability arises when three key elements are present in the page's code:
 | Target            | PortSwigger Web Security Academy lab |
 | HTTP Method       | GET |
 | Source            | `location.search` |
-| Sink              | `document.write()` |
-| Injection Context | HTML Attribute |
+| Sink              | `.innerHTML` |
+| Injection Context | HTML Context |
 | Client            | Web Browser |
 
 ---
@@ -86,11 +86,10 @@ The vulnerability arises when three key elements are present in the page's code:
 2. Submit a normal search term and observe how it is reflected in the page.
 3. Inspect the client-side JavaScript using browser Developer Tools.
 4. Identify `location.search` as the attacker-controlled source.
-5. Trace the data flow to the `document.write()` sink.
+5. Trace the data flow to the `innerHTML` sink.
 6. Identify the HTML attribute context created by `document.write()`.
-7. Break out of the existing attribute context.
-8. Inject an `<img>` element with an `onerror` event handler.
-9. Verify JavaScript execution using `alert()`.
+7. Inject an `<img>` element with an `onerror` event handler.
+8. Verify JavaScript execution using `alert()`.
 
 ---
 
@@ -102,29 +101,22 @@ The vulnerability arises when three key elements are present in the page's code:
 mohamad
 ```
 
-The application reflected the search term into an HTML attribute.
+The application reflected the search term into an HTML Context.
 
-### Step 2 — Context Testing
 
-```text
-mohamad">
-```
-
-The quotation mark allowed the existing attribute context to be terminated.
-
-### Step 3 — HTML Injection
+### Step 2 — HTML Injection
 
 ```html
-mohamad"><img src="x" onerror="alert(1)">
+<img src="x" onerror="alert(1)">
 ```
-
+We perform direct injection because all search inputs are executed as HTML code.
 The injected <img> element was interpreted as HTML, and the onerror handler executed when the image failed to load.
 
 ---
 
 # Technical Analysis
 
-The application reads the query string through `location.search` and passes the resulting value to `document.write()`.
+The application reads the query string through `location.search` and passes the resulting value to `innerHTML`.
 
 The generated HTML initially contains:
 
@@ -138,9 +130,9 @@ After injecting the payload, the browser receives HTML equivalent to:
 search:
 
 <img src="/resources/images/tracker.gif?searchTerms=">
-<img src="x" onerror="alert(mohamad)">
+<img src="x" onerror="alert(1)">
 ```
-The first double quote closes the original src attribute. The injected <img> element then creates an onerror event handler that executes JavaScript when the image fails to load.
+We perform direct injection because all search inputs are executed as HTML code. The injected <img> element then creates an onerror event handler that executes JavaScript when the image fails to load.
 
 ---
 
@@ -149,20 +141,26 @@ The first double quote closes the original src attribute. The injected <img> ele
 ## Source
 
 ```javascript
-location.search
+var query = (new URLSearchParams(window.location.search)).get('search');
 ```
 The source is attacker-controlled because the attacker can modify the query string in the URL.
 
 ## Data Flow
 
-The value from location.search is concatenated into an HTML string.
+```javascript
+if(query) {
+    doSearchQuery(query);
+}
+```
+
+The value from window.location.search is concatenated into an HTML string.
 
 ## Sink
 
 ```javascript
-document.write()
+document.getElementById('searchMessage').innerHTML = query;
 ```
-document.write() writes the constructed string into the HTML document, allowing the injected markup to be interpreted by the browser.
+The `innerHTML` function converts all search inputs into HTML code; therein lies the vulnerability, as it allows us to inject malicious HTML code.
 
 ---
 
@@ -172,13 +170,13 @@ document.write() writes the constructed string into the HTML document, allowing 
 
 ```html
 
-"><img src="x" onerror="alert(mohamad)">
+<img src="x" onerror="alert(1)">
 
 ```
 
 ## Why This Payload Works
 
-The payload first closes the existing `src` attribute using `"`, then closes the original HTML element with `>`. It injects a new `<img>` element with an invalid `src` value. When the browser fails to load the image, the `onerror` event handler is triggered and executes the JavaScript payload.
+We perform direct injection because all search inputs are executed as HTML code. It injects a new `<img>` element with an invalid `src` value. When the browser fails to load the image, the `onerror` event handler is triggered and executes the JavaScript payload.
 
 ---
 
@@ -194,7 +192,7 @@ URL Query Parameter
 location.search
       │
       ▼
-document.write()
+  innerHTML
       │
       ▼
 DOM / HTML
@@ -215,18 +213,17 @@ JavaScript Execution
 
 ## HTML Before Injection
 
-```html
-<img src="/resources/images/tracker.gif?searchTerms=mohamad">
+```javascript
+var query = (new URLSearchParams(window.location.search)).get('search');
 ```
 
 ---
 
 ## HTML After Injection
 
-```http
-<img src="/resources/images/tracker.gif?searchTerms=">
- <img src="x" onerror="alert(mohamad)">
-```
+```javascript
+document.getElementById('searchMessage').innerHTML =  <img src="x" onerror="alert(1)">;
+ ```
 
 ---
 
@@ -261,7 +258,7 @@ A DOM-based XSS vulnerability occurs when client side JavaScript code takes data
 
 # Remediation
 
-- Avoid dangerous DOM sinks such as `document.write()` when processing untrusted input.
+- Avoid dangerous DOM sinks such as `innerHTML` when processing untrusted input.
 - Use safe DOM APIs such as `textContent` when inserting text.
 - Apply context-aware output encoding.
 - Validate and sanitize untrusted input where appropriate.
@@ -273,9 +270,8 @@ A DOM-based XSS vulnerability occurs when client side JavaScript code takes data
 
 - DOM XSS can occur entirely on the client side without the server reflecting the payload.
 - `location.search` can act as an attacker-controlled source.
-- `document.write()` can become a dangerous sink when used with untrusted data.
+- `innerHTML` can become a dangerous sink when used with untrusted data.
 - The injection context determines how the payload must be constructed.
-- Breaking out of an HTML attribute can allow injection of a new HTML element.
 - Understanding Source → Data Flow → Sink is essential when analyzing DOM-based XSS.
 
 ---
@@ -293,24 +289,24 @@ A DOM-based XSS vulnerability occurs when client side JavaScript code takes data
 
 ## Initial Page
 
-![Test](Screen-Shots/test-lab3.png)
+![Test](Screen-Shots/test-lab4.png)
 
 ...
 
 ## Payload Injection
 
-![Injuction](Screen-Shots/injuct-lab3.png)
+![Injuction](Screen-Shots/injuct-lab4.png)
 
 ...
 
 ## Successful Alert
 
-![Success](Screen-Shots/success-lab3.png)
+![Success](Screen-Shots/success-lab4.png)
 
 ---
 
 # Conclusion
 
-This lab demonstrated how a DOM-based XSS vulnerability can arise when attacker-controlled data flows from `location.search` to the unsafe `document.write()` sink.
+This practical experiment demonstrated how a DOM-based XSS vulnerability can arise when attacker-controlled data flows from `location.search` to the unsafe `innerHTML` sink.
 
-The key lesson was that successful XSS exploitation depends on identifying the injection context and tracing the data flow from source to sink. In this case, breaking out of the HTML attribute context allowed the injection of a new element and execution of JavaScript through an `onerror` event handler.
+The key takeaway is that successfully exploiting an XSS vulnerability relies on identifying the injection context and tracing the data flow path from source to sink. In this instance, we performed a direct injection (HTML context) of a new element and executed JavaScript code via the `onerror` event handler.
