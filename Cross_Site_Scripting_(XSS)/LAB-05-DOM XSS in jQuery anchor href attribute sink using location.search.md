@@ -1,4 +1,4 @@
-# LAB 05 -  DOM XSS in jQuery anchor href attribute sink using location.search
+# LAB 05 -  DOM XSS in jQuery anchor 'href' attribute sink using 'location.search'
 
 ## Lab Information
 
@@ -42,7 +42,9 @@
 
 # Executive Summary
 
-In this lab, a DOM-based XSS vulnerability was identified, where attacker controlled input derived from `location.search` was passed to a `.attr('href', ...)` sink. This was achieved by injecting JavaScript code directly into the link, as the `href` attribute accepts various URI schemes.
+In this lab, a DOM-based XSS vulnerability was identified where attacker-controlled input from the `returnPath` parameter was obtained through `location.search` and passed to the jQuery `.attr('href', ...)` sink.
+
+Because the application did not validate the URL scheme, an attacker could supply a `javascript:` URI. When the manipulated link was activated, the browser executed the injected JavaScript code.
 
 ---
 
@@ -55,14 +57,17 @@ The objective of this lab is to exploit a DOM-based XSS vulnerability caused by 
 # Vulnerability Overview
 
 A DOM-based XSS (Document Object Model-based Cross-Site Scripting) vulnerability is a type of security flaw that occurs entirely within the user's browser on the client side. It happens when JavaScript code takes data from an attacker-controllable source and passes it—unsanitized—to a dangerous function that executes code (a "sink").
-The vulnerability arises when three key elements are present in the page's code: the source, the data flow and processing, and the dangerous destination or sink In this lab, the attacker-controlled input originates from `location.search` and is passed to `.attr('href', ...)`, We can modify the input for the `href` attribute since it accepts various URL schemes and execute JavaScript code directly within the link.
+The vulnerability arises when three key elements are present in the page's code: the source, the data flow and processing, and the dangerous destination or sink In this lab, attacker-controlled input from `location.search` was passed to the jQuery `.attr('href', ...)` sink without validating the URL scheme.
+
+This allowed the attacker to set the link's `href` attribute to a `javascript:` URI. JavaScript execution occurred when the user activated the manipulated link.
 
 ---
 
 # Attack Requirements
 
 - A client-side JavaScript source controllable by the attacker, such as `location.search`.
-- An unsafe sink—such as `.attr('href', ...)` that directly executes JavaScript code.
+- A jQuery `.attr('href', ...)` sink that allows attacker-controlled data to influence the URL of a link.
+- Lack of URL scheme validation, allowing dangerous schemes such as `javascript:`.
 - The absence of effective output encoding or sanitization between the source and the sink.
 
 ---
@@ -82,13 +87,15 @@ The vulnerability arises when three key elements are present in the page's code:
 
 # Methodology
 
-1. Open the vulnerable lab and locate the search function.
-2. Enter a standard search term and observe how it appears on the page.
-3. Inspect the client-side JavaScript code using the browser's developer tools.
-4. Identify `location.search` as the attacker-controlled source.
-5. Trace the data flow to the sink—specifically, `.attr('href', ...)`.
-6. Inject JavaScript code directly into the link.
-7. Verify the execution of the JavaScript code using the `alert()` function.
+1. Open the vulnerable lab.
+2. Inspect the page source and client-side JavaScript.
+3. Identify `location.search` as the attacker-controlled source.
+4. Identify the `returnPath` parameter.
+5. Trace the data flow to the jQuery `.attr('href', ...)` sink.
+6. Test whether the `href` value can be controlled.
+7. Test whether dangerous URL schemes are accepted.
+8. Use a `javascript:` URI to demonstrate JavaScript execution.
+9. Verify execution by triggering the manipulated Back link.
 
 ---
 
@@ -102,14 +109,27 @@ mohamad
 
 The search term was passed to the `.attr('href', ...)` destination and interpreted as a link.
 
+### Step 2 — Identify the parameter
 
-### Step 2 — JavaScript Injection
+```text
+?returnPath=/test
+```
+
+The `returnPath` parameter controls the value assigned to the `href` attribute of the Back link.
+
+### Step 3 — Confirm DOM Manipulation
+
+```html
+<a id="backLink" href="/test">Back</a>
+```
+
+
+### Step 4 — Test JavaScript Scheme
 
 ```JavaScript
 javascript:alert(1)
 ```
-Data was injected directly into the Document Object Model (DOM) via the `.attr('href', ...)` method without proper encoding or sanitization; consequently, the browser executed the JavaScript provided by the attacker.
-The injected `alert()` function was executed.
+The `href` attribute was changed to a `javascript:` URI. When the Back link was activated, the browser executed the JavaScript payload.
 
 ---
 
@@ -130,15 +150,26 @@ $(function() {
  </script>
 ```
 
- After the payload was processed by the client-side JavaScript, the affected DOM contained HTML equivalent to:
+### Before
 
 ```html
 search:
 
-(new URLSearchParams(window.location.search)).get('returnPath')
+<a id="backLink" href="/">Back</a>
+```
+
+The client-side JavaScript reads the `returnPath` parameter from the URL and assigns its value to the `href` attribute of the Back link.
+
+
+### After
+
+```html
+search:
+
 <a id="backLink" href="javascript:alert(1)">Back</a>
 ```
-We perform direct injection into the URL because all search inputs are executed as JavaScript code, given that the `href` attribute accepts various URL schemes.
+
+After supplying the malicious value, the DOM contains a `javascript:` URI. JavaScript execution occurs when the user activates the link.
 
 ---
 
@@ -147,14 +178,15 @@ We perform direct injection into the URL because all search inputs are executed 
 ## Source
 
 ```javascript
-$(function() {
-    $('#backLink').attr(
-        'href',
-        (new URLSearchParams(window.location.search)).get('returnPath')
-    );
-});
+window.location.search
 ```
 The source is attacker-controlled because the attacker can modify the query string in the URL.
+
+## Parameter
+
+```javascript
+returnPath
+```
 
 ## Data Flow
 
@@ -163,15 +195,15 @@ new URLSearchParams(window.location.search)
 .get('returnPath')
 ```
 
-The value extracted from `window.location.search` is passed through `URLSearchParams`, retrieved using `.get('returnPath')` So, the application takes the value we control from the `returnpath` parameter.
+The application extracts the attacker-controlled `returnPath` parameter from the URL query string.
 
 ## Sink
 
 ```javascript
-.attr('href', ...)
-<a id="backLink" href="...">Back</a>
+$('#backLink').attr('href', value);
 ```
-Since `.attr('href', ...)` modifies the value of `<a id="backLink" href="...">Back</a>`, it allows an attacker to execute JavaScript code directly within the URL, given that the `href` attribute accepts various URL schemes.
+The value is assigned to the `href` attribute of the Back link through jQuery's `.attr()` method.
+Because the application does not validate the URL scheme, an attacker can supply a `javascript:` URI. The JavaScript executes when the manipulated link is activated.
 
 ---
 
@@ -180,13 +212,14 @@ Since `.attr('href', ...)` modifies the value of `<a id="backLink" href="...">Ba
 | Property | Value |
 |---|---|
 | Source | `window.location.search` |
-| Parameter | `search` |
-| Sink |  `.attr('href', ...)' |
-| Injection Context | HTML Attribute Context |
+| Parameter | `returnPath` |
+| Sink | `.attr('href', ...)` |
+| Injection Context | HTML Attribute Context (`href`) |
 | Encoding | None |
 | Reflection Type | DOM-based |
-| JavaScript Execution | Possible through injected event handlers |
-| Payload Type | Injecting JavaScript code directly |
+| URL Scheme Validation | None |
+| Payload Type | `javascript:` URI |
+| Execution Trigger | User activates the manipulated link |
 
 ---
 
@@ -194,7 +227,7 @@ Since `.attr('href', ...)` modifies the value of `<a id="backLink" href="...">Ba
 
 ## Payload Used
 
-```URL Scheme
+```javascript
 
 javascript:alert(1)
 
@@ -202,7 +235,9 @@ javascript:alert(1)
 
 ## Why This Payload Works
 
-We perform direct injection into the URL because all search inputs are executed as JavaScript code, given that the `href` attribute accepts various URL schemes.
+The payload uses the `javascript:` URI scheme. The application places the attacker-controlled value directly into the `href` attribute without validating the URL scheme.
+
+When the victim activates the manipulated link, the browser interprets the `javascript:` URI and executes the supplied JavaScript code.
 
 ---
 
@@ -210,32 +245,29 @@ We perform direct injection into the URL because all search inputs are executed 
 
 ```text
 Attacker
-    │
-    ▼
-URL Query Parameter
-    │
-    ▼
-window.location.search
-    │
-    ▼
+   │
+   ▼
+returnPath parameter
+   │
+   ▼
+location.search
+   │
+   ▼
 URLSearchParams
-    │
-    ▼
+   │
+   ▼
 returnPath
-    │
-    ▼
-  jQuery 
-    │
-    ▼
- .attr()
-    │
-    ▼
-<a href="...">
-    │
-    ▼
-Injected javascript:    
-    │
-    ▼
+   │
+   ▼
+jQuery .attr('href', ...)
+   │
+   ▼
+<a href="javascript:alert(1)">
+   │
+   ▼
+User clicks "Back"
+   │
+   ▼
 JavaScript Execution
 ```
 
@@ -245,45 +277,59 @@ JavaScript Execution
 
 ## HTML Before Injection
 
-```javascript
-$(function() {
-    $('#backLink').attr(
-        'href',
-        (new URLSearchParams(window.location.search)).get('returnPath')
-    );
-});
+```html
+<a id="backLink" href="/">Back</a>
+```
+
+## URL Parameter
+
+```text
+?returnPath=javascript:alert(1)
 ```
 
 ---
 
 ## HTML After Injection
 
-```javascript
-.attr('href', ...)
-<a id="backLink" href="...">Back</a>
+ ```html
+<a id="backLink" href="javascript:alert(1)">Back</a>
  ```
-`.attr('href', ...)` modifies the value of `<a id="backLink" href="...">Back</a>`, it allows an attacker to execute JavaScript code directly within the URL, given that the `href` attribute accepts various URL schemes.
 
-```URL Scheme
+The payload uses the `javascript:` URI scheme. The application places the attacker-controlled value directly into the `href` attribute without validating the URL scheme.
+
+When the victim activates the manipulated link, the browser interprets the `javascript:` URI and executes the supplied JavaScript code.
+
+
+
+## Result
+
+```text
+User activates the Back link
+        ↓
 javascript:alert(1)
+        ↓
+JavaScript execution
+        ↓
+Alert displayed
 ```
-We perform direct injection into the URL because all search inputs are executed as JavaScript code, given that the `href` attribute accepts various URL schemes.
-
 ---
 
 # Impact
 
-- Access to sensitive information available to JavaScript.
-- Session compromise in scenarios where session tokens are accessible to JavaScript.
-- Performing unauthorized actions in the victim's security context.
-- Phishing and page manipulation.
-- Redirecting users to malicious pages.
+- Execute arbitrary JavaScript in the victim's browser context.
+- Modify page content and user-visible functionality.
+- Perform actions on behalf of the victim.
+- Phishing and UI manipulation.
+- Access sensitive data exposed to JavaScript.
+- Potential session compromise depending on the application's session management and cookie protections.
   
 ---
 
 # Root Cause
 
-A DOM-based XSS vulnerability occurs when client side JavaScript code takes data from attacker-controlled input (known as the "Source") and passes it unsafely to a function or property that executes code in the browser (known as the "Sink"), resulting in the execution of malicious code.
+The root cause is the assignment of attacker-controlled URL data to the `href` attribute without validating or restricting the allowed URL schemes.
+
+The application should not allow dangerous schemes such as `javascript:` to reach the DOM.
 
 ---
 
@@ -302,23 +348,24 @@ A DOM-based XSS vulnerability occurs when client side JavaScript code takes data
 
 # Remediation
 
-- Avoid dangerous DOM sinks such as `innerHTML` when processing untrusted input.
-- Use safe DOM APIs such as `textContent` when inserting text.
-- Apply context-aware output encoding.
-- Validate and sanitize untrusted input where appropriate.
+- Validate the `returnPath` value before assigning it to `href`.
+- Allow only expected URL schemes such as `https:` and `http:` where appropriate.
+- Reject dangerous schemes such as `javascript:` and `data:`.
+- Prefer allowlisting known relative paths when the application only needs internal navigation.
+- Use safe URL handling and validate the destination before assigning it to `href`.
 - Implement a restrictive Content Security Policy (CSP) as an additional defense layer.
-- document.getElementById('searchMessage').textContent = query;   Using `textContent` treats the input as text rather than parsing it as HTML.
 
   
 ---
 
 # Lessons Learned
 
-- A DOM XSS vulnerability can occur without requiring server-side data reflection.
-- `location.search` is a DOM "source" that an attacker can control.
-- Using `.attr('href', ...)` is dangerous when handling untrusted input.
-- Tracing the path from the source, through the data flow, to the sink is essential when analyzing DOM-based XSS vulnerabilities.
-- Secure DOM APIs, such as `textContent`, should be preferred when inserting untrusted text.
+- DOM XSS can occur entirely on the client side.
+- `location.search` can act as an attacker-controlled source.
+- The `returnPath` parameter controlled the value assigned to the `href` attribute.
+- URL scheme validation is critical when user-controlled data is assigned to `href`.
+- The `javascript:` URI scheme can result in JavaScript execution when activated.
+- Source → Data Flow → Sink analysis is essential for identifying DOM-based XSS.
   
 ---
 
@@ -348,6 +395,14 @@ A DOM-based XSS vulnerability occurs when client side JavaScript code takes data
 ## Successful Alert
 
 ![Success](Screen-Shots/success-lab5.png)
+
+---
+
+# Execution Condition
+
+Unlike some DOM XSS vulnerabilities that execute automatically when the page is loaded, this vulnerability requires the victim to activate the manipulated link.
+
+The payload is stored in the `href` attribute of the Back link and executes when the browser navigates to the `javascript:` URI.
 
 ---
 
