@@ -42,32 +42,31 @@
 
 # Executive Summary
 
-In this lab, a DOM-based XSS vulnerability was identified where attacker-controlled input from the `returnPath` parameter was obtained through `location.search` and passed to the jQuery `.attr('href', ...)` sink.
+A DOM-based Cross-Site Scripting (XSS) vulnerability was identified in this lab. Attacker-controlled input is obtained from the `hashchange` event via `window.location.hash` and passed to a jQuery selector specifically `section.blog-list h2:contains` which acts as a code execution sink.
 
-Because the application did not validate the URL scheme, an attacker could supply a `javascript:` URI. When the manipulated link was activated, the browser executed the injected JavaScript code.
+Since user-supplied values ​​are injected directly into the selector, an attacker can execute JavaScript code by manipulating the page's hash.
 
 ---
 
 # Objective
 
-The objective of this lab is to exploit a DOM-based XSS vulnerability caused by the unsafe flow of attacker-controlled data from `location.search` (source) to `.attr('href', ...)` (sink).
+The objective of this lab is to exploit a DOM-based XSS vulnerability caused by the unsafe flow of attacker-controlled data from `window.location.hash` (source) to `section.blog-list h2 : contains` (sink).
 
 ---
 
 # Vulnerability Overview
 
 A DOM-based XSS (Document Object Model-based Cross-Site Scripting) vulnerability is a type of security flaw that occurs entirely within the user's browser on the client side. It happens when JavaScript code takes data from an attacker-controllable source and passes it—unsanitized—to a dangerous function that executes code (a "sink").
-The vulnerability arises when three key elements are present in the page's code: the source, the data flow and processing, and the dangerous destination or sink In this lab, attacker-controlled input from `location.search` was passed to the jQuery `.attr('href', ...)` sink without validating the URL scheme.
+The vulnerability arises when three key elements are present in the page's code: the source, the data flow and processing, and the dangerous destination or sink In this lab, attacker-controlled input from `window.location.hash` was passed to the jQuery selector `section.blog-list h2 : contains` sink Without any purification.
 
-This allowed the attacker to set the link's `href` attribute to a `javascript:` URI. JavaScript execution occurred when the user activated the manipulated link.
+This allowed the attacker, after reloading the lab page via an `<iframe>` element, to set an `onerror` event containing a `print()` call.
 
 ---
 
 # Attack Requirements
 
-- A client-side JavaScript source controllable by the attacker, such as `location.search`.
-- A jQuery `.attr('href', ...)` sink that allows attacker-controlled data to influence the URL of a link.
-- Lack of URL scheme validation, allowing dangerous schemes such as `javascript:`.
+- A client-side JavaScript source controllable by the attacker, such as `widow.location.hash`.
+- A jQuery selector `section.blog-list h2 : contains` sink that allows attacker-controlled data to influence the URL of a link.
 - The absence of effective output encoding or sanitization between the source and the sink.
 
 ---
@@ -78,8 +77,8 @@ This allowed the attacker to set the link's `href` attribute to a `javascript:` 
 |-------------------|-------|
 | Target            | PortSwigger Web Security Academy lab |
 | HTTP Method       | GET |
-| Source            | `location.search` |
-| Sink              | `.attr('href', ...)' |
+| Source            | `window.location.hash` |
+| Sink              | `section.blog-list h2 : contains` |
 | Injection Context | HTML Attribute Context |
 | Client            | Web Browser |
 
@@ -89,13 +88,12 @@ This allowed the attacker to set the link's `href` attribute to a `javascript:` 
 
 1. Open the vulnerable lab.
 2. Inspect the page source and client-side JavaScript.
-3. Identify `location.search` as the attacker-controlled source.
-4. Identify the `returnPath` parameter.
-5. Trace the data flow to the jQuery `.attr('href', ...)` sink.
-6. Test whether the `href` value can be controlled.
-7. Test whether dangerous URL schemes are accepted.
-8. Use a `javascript:` URI to demonstrate JavaScript execution.
-9. Verify execution by triggering the manipulated Back link.
+3. Identify `window.location.hash` as the attacker-controlled source.
+4. Trace the data flow to the jQuery selector `section.blog-list h2 : contains` sink.
+5. Open the exploit page.
+6. Reloading the page using the `<iframe>` element to satisfy the hash requirement.
+7. Add an `<img>` element with an `onerror` event that displays the print page.
+8. Verify execution by the appearance of the print page.
 
 ---
 
