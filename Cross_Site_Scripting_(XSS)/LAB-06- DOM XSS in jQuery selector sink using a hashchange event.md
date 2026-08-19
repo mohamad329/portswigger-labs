@@ -102,10 +102,10 @@ This allowed the attacker, after reloading the lab page via an `<iframe>` elemen
 ### Step 1 — Normal Input
 
 ```text
-mohamad
+#mohamad
 ```
 
-The search term was passed to the `.attr('href', ...)` destination and interpreted as a link.
+The search term is passed to the `slice(1)` function which removes the first character and then to the jQuery selector.
 
 ### Step 2 — Identify the parameter
 
