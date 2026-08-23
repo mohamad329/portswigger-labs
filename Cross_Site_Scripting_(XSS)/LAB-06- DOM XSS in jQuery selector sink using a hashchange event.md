@@ -563,6 +563,12 @@ value in an unsafe manner, a crafted hash can lead to DOM XSS.
 
 ![Injuction](Screen-Shots/injuct-lab6.png)
 
+
+...
+
+![Injuction](Screen-Shots/injuct-lab6(2).png)
+
+
 ...
 
 ## Successful Alert
