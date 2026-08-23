@@ -109,7 +109,7 @@ Executes JavaScript
 
 Executing malicious JavaScript code can lead to
 - Session hijacking
-- - Cookie theft (if cookies are not protected with HttpOnly)
+- Cookie theft (if cookies are not protected with HttpOnly)
 - Credential theft
 - Phishing
 - Defacement
