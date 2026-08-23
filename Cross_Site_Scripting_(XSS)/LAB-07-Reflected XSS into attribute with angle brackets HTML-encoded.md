@@ -64,8 +64,9 @@ A reflected Cross-Site Scripting (XSS) vulnerability occurs when user-controlled
 # Attack Requirements
 
 - User input is reflected in the HTTP response.
-- Weak output encryption
-- Allow execution of JavaScript functions
+- The application does not properly encode quotation marks in the HTML attribute context.
+- The reflected value is inserted into an HTML attribute.
+- JavaScript event handlers are allowed to execute.
   
 ---
 
@@ -83,13 +84,13 @@ A reflected Cross-Site Scripting (XSS) vulnerability occurs when user-controlled
 # Methodology
 
 1. Open the vulnerable lab.
-2. Enter a test value into the search field.
-3. Intercepting the request using Burp Suite
-4. Experiment with value locking using "
-5. Note: Quotation marks are not encoded.
-6. Add an event to the property containing the `alert` function.
-7. Reload the page
-8. Execution of the function and successful completion of the operation
+2. Enter a normal search value to identify the reflection point.
+3. Inspect the HTTP request and response using Burp Suite.
+4. Identify the HTML attribute context.
+5. Test whether quotation marks are encoded.
+6. Escape the `value` attribute using a double quote.
+7. Inject an event handler using `autofocus` and `onfocus`.
+8. Verify JavaScript execution using `alert(1)`.
 
 ---
 
@@ -104,13 +105,12 @@ mohamad
 The search value "mohamad" is added within the tag "
 
 
-### Step 2 — Value-locking experiment
-
+### Step 2 — Testing Attribute Escape
 
 ```text
 mohamad"
 ```
-We observe that the value has been enclosed using quotation marks—meaning the quotation mark itself is not encoded.
+The double quote was reflected without being encoded, allowing the input to escape the original value attribute.
 
 ### Step 3 — Event addition test
 
@@ -128,15 +128,15 @@ The value of the search feature at the outset:
 ```html
 <input type=text placeholder='Search the blog...' name=search value="mohamad">
 ```
-The search value is placed within the "..." mark.
-
+The attacker-controlled input is reflected inside the value attribute.
 
 ### After Injection
 
 ```html
-<input type=text placeholder='Search the blog...' name=search value=mohamad"autofocus onfocus=alert(1) x=">
+<input type=text placeholder='Search the blog...' name=search value="mohamad"autofocus onfocus=alert(1) x="">
 ```
-After closing the `value` attribute, we added an `alert` event inside it that executes when the page loads.
+The injected double quote closes the original value attribute. The attacker then adds the autofocus and onfocus attributes.
+When the input automatically receives focus, the onfocus handler executes alert(1).
 
 ---
 
@@ -145,10 +145,11 @@ After closing the `value` attribute, we added an `alert` event inside it that ex
 | Property | Value |
 |---|---|
 | Injection Context | HTML Attribute Context  |
-| Encoding | Angle bracket encoded |
+| Encoding |  `<` and `>` HTML-encoded; quotation marks not encoded |
 | Reflection Type | Reflected |
 | URL Scheme Validation | None |
-| Payload Type | "autofocus onfocus=alert(1) x=" |
+| Source | Search parameter |
+| Payload Type | Attribute injection using autofocus and onfocus |
 
 ---
 
@@ -156,56 +157,63 @@ After closing the `value` attribute, we added an `alert` event inside it that ex
 
 ## Payload Used
 
-```html
-"autofocus onfocus=alert(1) x="
+```text
+mohamad" autofocus onfocus=alert(1) x="
 
 ```
 
 ## Why This Payload Works
 
+```text
+mohamad
+```
+A normal value used to identify the reflection point in the HTML response.
+
+
 ```html
 "
 ```
-It closes the value.
+The double quote closes the original value attribute: value="mohamad" This allows the attacker to break out of the original attribute context.
 
 ```html
-autofocus onfocus
+autofocus 
 ```
-An event triggered when the page loads.
+The autofocus attribute causes the input element to receive focus automatically when the page loads.
 
 ```html
-alert(1)
+onfocus=alert(1)
 ```
-A function that displays a message in the center of the page based on the content placed within the parentheses; this indicates successful injection.
+The onfocus event handler executes when the input element receives focus.
+Because autofocus causes the element to receive focus automatically, the browser executes: alert(1)
 
 ```html
 x="
 ```
-To close the new event we added
+This adds another HTML attribute and completes the injected markup structure. It is not responsible for executing the JavaScript.
 
 ---
 
 # Exploitation Flow
 
 ```text
-Attacker
-   │
-   ▼
-Standard search
-   │
-   ▼
-BurbSuite
-   │
-   ▼
-Closing value
-   │
-   ▼
+"
+│
+├── Closes the original value attribute
+│
+▼
 autofocus
-   │
-   ▼
-onfocus
-   │
-   ▼
+│
+├── Automatically gives the element focus
+│
+▼
+onfocus=alert(1)
+│
+├── Executes when focus occurs
+│
+▼
+JavaScript Execution
+│
+▼
 alert(1)
   
 ```
@@ -225,7 +233,7 @@ alert(1)
 ## HTML After Injection
 
  ```html
-<input type=text placeholder='Search the blog...' name=search value=mohamad"autofocus onfocus=alert(1) x=">
+<input type=text placeholder='Search the blog...' name=search value="mohamad"autofocus onfocus=alert(1) x="">
 
  ```
 
@@ -247,18 +255,21 @@ The Appearance of the Message
 
 # Impact
 
-- Session hijacking
-- Cookie theft (if cookies are not protected with HttpOnly)
-- Credential theft
-- Phishing
-- Defacement
-- Performing actions as the victim
+The demonstrated vulnerability allows arbitrary JavaScript execution in the victim's browser. Depending on the application's security controls and available browser-accessible data, this may allow:
+
+- Manipulation of page content.
+- Phishing attacks.
+- Performing actions in the victim's security context.
+- Access to sensitive data exposed to JavaScript.
+- Session compromise in applications where session information is accessible to JavaScript.
  
 ---
 
 # Root Cause
 
-The application reflects user-controlled input into the HTML response without proper output encoding or sanitization.
+The root cause is improper context-aware output encoding. The application reflects user-controlled input inside an HTML attribute while failing to encode quotation marks.
+
+Although angle brackets are HTML-encoded, the unencoded quotation mark allows an attacker to escape the `value` attribute and inject additional HTML attributes, including an event handler capable of executing JavaScript.
 
 ---
 
@@ -277,20 +288,31 @@ The application reflects user-controlled input into the HTML response without pr
 
 # Remediation
 
-- Output Encoding : is a security technique that converts unsafe data into a safe, plain format before displaying it to the user. Its goal is to prevent the browser from executing malicious code and to protect websites against injection attacks, such as Cross-Site Scripting (XSS).
-- Input Validation : The process of verifying and confirming that input data meets the required criteria, is secure, and is in the correct format before being processed by the system.
-- Content Security Policy (CSP) : A web security standard that enables website owners to control the resources a browser is permitted to load and execute.
-- HttpOnly Cookies : A special type of cookie that cannot be accessed by JavaScript code.
-- Secure Frameworks : Use frameworks that automatically escape HTML output.
-  
+- **Context-aware Output Encoding**
+  - Encode user-controlled data according to the HTML attribute context.
+
+- **Safe Templating**
+  - Use frameworks and templating engines that automatically perform context-aware escaping.
+
+- **Input Validation**
+  - Validate input according to the application's expected format.
+
+- **Content Security Policy (CSP)**
+  - Deploy a restrictive CSP as an additional defense-in-depth measure.
+
+- **HttpOnly Cookies**
+  - Mark sensitive session cookies as `HttpOnly` to reduce the ability of injected JavaScript to access them. This does not prevent XSS itself.
+    
 ---
 
 # Lessons Learned
 
-- Even if encoding is present, if it is weak, it can be exploited to execute an XSS attack.
-- HTML encoding prevents browser interpretation.
-- XSS targets the client, not the server.
-- Understanding HTML context is essential.
+- HTML encoding must be appropriate for the output context.
+- Encoding `<` and `>` alone is not sufficient when quotation marks remain unencoded inside an HTML attribute.
+- The injection context determines the appropriate XSS payload.
+- Event handlers such as `onfocus` can execute JavaScript without requiring a `<script>` element.
+- `autofocus` can be used to trigger a focus-dependent event automatically.
+- Context-aware output encoding is essential for preventing XSS.
   
 ---
 
@@ -320,14 +342,6 @@ The application reflects user-controlled input into the HTML response without pr
 ## Successful Alert
 
 ![Success](Screen-Shots/success-lab7.png)
-
----
-
-# Execution Condition
-
-- User input is reflected in the HTTP response.
-- Weak output encryption
-- Allow execution of JavaScript functions
 
 ---
 
