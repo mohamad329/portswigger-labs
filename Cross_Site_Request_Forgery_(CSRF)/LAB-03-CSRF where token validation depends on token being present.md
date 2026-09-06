@@ -62,12 +62,11 @@ Authentication establishes who the user is, but it does not necessarily prove th
 
 # Attack Requirements
 
-1- The victim is logged into the target site.
-2- The victim's browser automatically includes the authentication credentials required by the target application.
-3- The attacker knows or can guess the target URL and the required transaction parameters.
-4- The sensitive action can be triggered via various elements, such as a form, an image, an embedded frame, or a link.
-5- Ensure that CSRF token protection is correctly implemented for the POST method only.
-6- The application does not implement another effective CSRF defense.
+1. The victim is authenticated to the target application.
+2. The victim's browser can send requests to the target application while authenticated.
+3. The attacker knows or can determine the vulnerable endpoint and required parameters.
+4. The state-changing action can be triggered through a cross-site request.
+5. The application does not enforce the presence of a valid CSRF token.
 
 ---
 
@@ -95,7 +94,7 @@ Authentication establishes who the user is, but it does not necessarily prove th
 4. Check the request to see if it contains protection values.
 5. Go to the exploit page.
 6. Create a cross-site HTML form targeting the vulnerable endpoint.
-7. Include the victim-controlled email value as a hidden form parameter.
+7. Include an attacker-controlled email address as a hidden form parameter.
 8. Automatically submit the form from the exploit server.
 9. Deliver the exploit to the victim.
 10. Verify that the victim's email address was changed.
@@ -120,7 +119,7 @@ HOST:XXXXXXXX
 Cookie: session=REDACTED
 email= mohamad@gmail.com 
 ```
-In the response, we will observe the No error appears, which means the CSRF parameter is not required.
+In the response, we will observe the The server returned a successful redirect without requiring the CSRF parameter. After accessing the account page, the email address was confirmed to have changed. This demonstrates that the application accepts the state-changing request even when the CSRF parameter is completely omitted.
 
 ---
 
@@ -147,16 +146,14 @@ email= mohamad@gmail.com & csrf= XXXXXX
 The relevant request parameter is: email=mohamad@gmail.com
 The request is authenticated using the victim's session cookie.
 
-The request includes a CSRF token, but its presence is not verified.
+The application does not enforce the presence of the CSRF token. When the token parameter is omitted, the server still processes the state-changing request.
 
 Therefore, the application accepts the state-changing request based on the authenticated session without verifying that the request was intentionally initiated by the legitimate application.
 
 ```http
-GET /my-account/change-email?email= mohamad@gmail.com HTTP/2
-Host: TARGET
-Cookie: session=[REDACTED]
-Content-Type: application/x-www-form-urlencoded
+POST /my-account/change-email HTTP/1.1
 
+email=attacker@gmail.com
 ```
 
 ---
@@ -186,6 +183,7 @@ It creates a form that sends a POST request to the entered page.
 ```html
  <input type="hidden" name="email" value="hacker@gmail.com">
 ```
+No CSRF parameter is included in the form. This is intentional because the vulnerability allows the server to process the state-changing request when the CSRF parameter is absent.
 You enter the email address value you want to change, without it being visible to the victim.
 
 ```html
@@ -214,8 +212,14 @@ Victim's Browser
    ▼
 Target Server
    │
-   │ CSRF token missing
-   │ → Validation skipped
+   ▼
+CSRF token missing
+   │
+   ▼
+Request still accepted
+   │
+   ▼
+Email changed
    │
    ▼
 Email changed
@@ -246,7 +250,9 @@ Depending on the application's account recovery and security mechanisms, unautho
 
 # Root Cause
 
-The root cause is an inconsistency in the CSRF token validation process regarding the token's presence; the application does not require the CSRF parameter to be present. Consequently, an attacker can remove the CSRF value and still successfully complete the email update operation, thereby altering the system state.
+The root cause is improper enforcement of CSRF token validation. The application treats the CSRF parameter as optional rather than requiring a valid token for the state-changing operation.
+
+When the `csrf` parameter is omitted, the server still processes the request and changes the authenticated user's email address. As a result, an attacker can construct a cross-site POST request without knowing or supplying the victim's valid CSRF token.
 
 For example:
 
@@ -291,9 +297,9 @@ This occurs due to inconsistent implementation of security measures.
 - **Strict adherence to REST standards (Strict HTTP Methods)**
   - Ensure that GET requests are used solely for viewing and reading data, and never alter the system state (changing a password via a GET link is     a security disaster).
 
-- **Validating Custom Request Headers**
-  - When using technologies like AJAX or Fetch (in SPA applications), Use custom request headers for AJAX/API requests where appropriate, combined     with a server-side validation strategy and CORS enforcement. A custom header should not be treated as the sole CSRF defense.
-  - Browsers prevent external sites from automatically sending custom headers due to the CORS policy.
+- - **Custom Request Headers**
+  - For AJAX/API requests, require an appropriate custom header where applicable and validate it server-side.
+  - Do not rely on custom headers as the sole CSRF defense.
  
   - **Checking Origin and Referer Headers**
   - Verifying the Origin or Referer header on the server side as an additional validation step to ensure that the request actually originated from     your site rather than a malicious one.
@@ -309,7 +315,7 @@ This occurs due to inconsistent implementation of security measures.
 - Authentication is not equivalent to intent verification.
 - CSRF exploits the victim's authenticated session rather than stealing the session itself.
 - A state-changing request should require an appropriate CSRF defense.
-- The CSRF token validation condition must be based on its presence.
+- The presence of a CSRF token must be mandatory for state-changing requests, and its value must be validated server-side.
   
 ---
 
@@ -352,6 +358,6 @@ This occurs due to inconsistent implementation of security measures.
 # Conclusion
 
 This practical experiment demonstrated the successful exploitation of a Cross-Site Request Forgery (CSRF) vulnerability in a lab environment.
-The vulnerable endpoint accepted a request to alter the system state without requiring a CSRF token or any other effective defense mechanism; although a CSRF parameter existed, the application failed to validate its presence within the request. By hosting a malicious HTML form on an external server, the attacker was able to induce the victim's browser to send a forged request to the target application.
+The vulnerable endpoint accepted a request to alter the system state without requiring a CSRF token or any other effective defense mechanism; although a CSRF parameter existed, The application failed to enforce the presence of a CSRF token and accepted the state-changing request even when the token parameter was completely omitted. By hosting a malicious HTML form on an external server, the attacker was able to induce the victim's browser to send a forged request to the target application.
 
 The key takeaway is that authentication alone is insufficient to verify user intent. Therefore, requests that alter system state must be protected by appropriate CSRF defenses, such as mandatory CSRF token validation, the use of appropriate SameSite cookie policies, and origin/referrer verification where applicable.
