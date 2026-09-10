@@ -365,8 +365,6 @@ This occurs due to inconsistent implementation of security measures.
 
 # Conclusion
 
-# Conclusion
-
 This practical experiment demonstrated the successful exploitation of a Cross-Site Request Forgery (CSRF) vulnerability in a laboratory environment.
 The vulnerable endpoint accepted a state-changing request without requiring a CSRF token linked to the user's session or any other effective defensive mechanism; it even accepted the request when a CSRF token belonging to a different user was used. By hosting a malicious HTML form on an external server, the attacker was able to induce the victim's browser to send a forged request to the target application.
 
