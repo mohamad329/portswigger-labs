@@ -42,9 +42,13 @@
 
 # Executive Summary
 
-A Cross-Site Request Forgery (CSRF) vulnerability was discovered in the email change function. Although the application requires a valid CSRF token linked to a `CSRFKey`, these tokens are not bound to the authenticated user's session; consequently, an attacker can obtain valid CSRF and `CSRFKey` tokens from their own session and use them in a forged request targeting another authenticated user's session.
+A Cross-Site Request Forgery (CSRF) vulnerability was identified in the email change functionality. The application validates the relationship between the `csrf` token and the `csrfKey` cookie, but does not bind the `csrfKey` and corresponding CSRF token to the authenticated user's session.
 
-This allows an attacker to craft an HTML form (executed cross-site) to change the email address of a logged-in victim, without needing to know or obtain the victim's specific CSRF and `CSRFKey` tokens.
+During testing, a valid `csrf` token and `csrfKey` obtained from a separate attacker-controlled session were accepted when submitted together with the victim's authenticated session.
+
+The application also contains a CRLF injection vulnerability in the search functionality, which allows an attacker to inject a `Set-Cookie` header and overwrite the victim's `csrfKey` cookie. By combining the CRLF injection with the CSRF weakness, an attacker can cause a victim's browser to submit a forged request that changes the victim's email address.
+
+This demonstrates that the application's CSRF protection validates token validity and token-to-cookie association, but fails to establish the required association between those values and the authenticated user session.
 
 ---
 
@@ -78,14 +82,15 @@ Authentication establishes who the user is, but it does not necessarily prove th
 | Item | Value |
 |------|-------|
 | Target | PortSwigger Web Security Academy lab |
-| Endpoint | `/my-account/change-email` |
-| HTTP Method | POST , GET |
-| Parameter | `email` |
+| Primary Endpoint | `/my-account/change-email` |
+| Primary HTTP Method | POST |
+| Secondary Endpoint | `/?search=...` |
+| Primary Parameter | `email` |
+| CSRF Parameter | `csrf` |
+| CSRF Cookie | `csrfKey` |
 | Authentication | Session cookie |
-| CSRF Protection | CSRF Token |
 | Attack Platform | Exploit Server |
-| Client | Web Browser |
-| Attack Vector | Cross-site HTML form submission |
+| Attack Vector | Cross-site HTML |
 
 ---
 
@@ -154,7 +159,7 @@ email=attacker@example.com&csrf=TOKEN_B
 ```
 SESSION_A = victim's authenticated session
 TOKEN_B   = fresh CSRF token obtained from another session
-CSRFKey_A = fresh CSRF Key obtained from another session
+CSRFKey_B = fresh CSRF Key obtained from another session
 
 Upon inspecting the response, we observed that the server successfully performed a redirect without requiring the CSRF and CSRFKey tokens to be bound to the user's session. After accessing the account page, we confirmed that the email address had been changed; this demonstrates that the application accepts state-changing requests even when using CSRF and CSRFKey tokens belonging to another user.
 
@@ -168,7 +173,7 @@ Upon inspecting the response, we observed that the server successfully performed
 | Victim | Attacker session | Victim session | ❌ Invalid CSRF Key |
 | Victim | Attacker session | Attacker session | ✅ Email changed |
 
-The final test reveals the security vulnerability: the request does not require linking the parameters to the specific user session (CSRF and CSRFKey).
+These results demonstrate that the application validates the relationship between the CSRF token and the `csrfKey` cookie, but does not validate that this token-cookie pair belongs to the authenticated session.
 
 ---
 
@@ -182,7 +187,10 @@ csrfkey= XXXXXX
 
 email= mohamad@gmail.com & csrf= XXXXXX
 ```
-The relevant request parameter is: email=mohamad@gmail.com
+The relevant state-changing parameter is:
+
+`email=mohamad@gmail.com`
+
 The request is authenticated using the victim's session cookie.
 
 The application validates the provided CSRF and CSRFKey tokens but does not verify that these tokens are associated with the authenticated user's session.
@@ -230,7 +238,7 @@ You enter the email address value you want to change, without it being visible t
 ```html
      <input type="hidden" name="csrf" value="TOKEN_ATTACKER">
 ```
-The `csrf` value must be a valid, fresh token obtained from the attacker's authenticated session. The token is intentionally not obtained from the victim's session.
+This behavior demonstrates that the application accepts a valid CSRF token from another session as long as it matches the corresponding `csrfKey`, instead of requiring the token to be associated with the authenticated victim's session.
 The form must include a CSRF parameter because it is required; however, it is not bound to the victim's session meaning a valid, fresh CSRF token obtained from another session can be used. This is intentional, as the vulnerability allows the server to process the state-changing request provided a valid CSRF parameter from *anyone* is present.
 
 ```html
@@ -245,54 +253,51 @@ It causes the victim's browser to send a GET request to the target site, trigger
 # Exploitation Flow
 
 ```text
-        Attacker
-           │
-           │ Sends a malicious HTML page
-           ▼
-    Victim's Browser
-           │
-           │ POST /my-account/change-email
-           │ email=attacker@example.com&csrf=XXXXXXXX 
-           │  csrfkey= XXXXXXXX
-           │ 
-           ▼
-      Target Server
-           │
-           ▼
-The attacker obtains new CSRF and CSRFKey tokens.
-           │
-           ▼
-   Malicious HTML form
-           │
-           ▼
-    The <img> element
-           │
-           ▼
-   Victim's browser
-           │
-           ▼
-       POST with:
-     Victim Session
-    Attacker's CSRF token
-    Attacker-controlled email
-     and GET with:
-   Attacker's CSRF Key
-           │
-           ▼
-The server verifies the validity of the two tokens
-           │
-           ▼
-Fails to verify session binding
-           │
-           ▼
-   Request accepted
-           │
-           ▼
- Victim's email changed
-           │
-           ▼
-      Email changed
-          ✅
+                               Attacker
+                            │
+                            │ Obtains fresh
+                            │ csrf + csrfKey
+                            ▼
+                    Malicious HTML
+                       / Exploit Server
+                            │
+              ┌─────────────┴─────────────┐
+              │                           │
+              ▼                           ▼
+            <img>                       <form>
+              │                           │
+              │ GET /?search=...         │ Prepared POST
+              ▼                           │
+       CRLF Injection                     │
+              │                           │
+              ▼                           │
+   Set-Cookie: csrfKey=K1                 │
+              │                           │
+              ▼                           │
+      Victim's Browser                   │
+              │                           │
+              └─────────────┬─────────────┘
+                            ▼
+                   POST /change-email
+                            │
+             Session = Victim
+             csrfKey = Attacker's K1
+             csrf = Attacker's T1
+                            │
+                            ▼
+                    Target Application
+                            │
+                            ▼
+              csrf ↔ csrfKey = VALID
+              session ↔ csrfKey = NOT CHECKED
+                            │
+                            ▼
+                    Request accepted
+                            │
+                            ▼
+                    Email changed
+                           ✅
+          
   
 ```
 
@@ -302,12 +307,9 @@ Fails to verify session binding
 
 Depending on the privileges of the victim and the application's functionality, successful CSRF exploitation may allow an attacker to:
 
-- Change the victim's email address.
-- Modify account profile information.
-- Perform unauthorized account actions.
-- Change security-related settings if they are vulnerable to CSRF.
-- Perform administrative actions when the victim has administrative privileges.
-- Trigger financial or transactional operations if those endpoints lack CSRF protection.
+Successful exploitation allows an attacker to change the email address of an authenticated victim without the victim intentionally submitting the request.
+
+Changing the email address may affect account recovery or account-management workflows, depending on the application's implementation. However, account takeover was not directly demonstrated during this assessment.
   
 ### Lab-Specific Impact
 
@@ -319,9 +321,13 @@ Depending on the application's account recovery and security mechanisms, unautho
 
 # Root Cause
 
-The root cause of the problem lies in the failure to correctly bind the CSRF token and the CSRFKey; while the application verifies the association between the two tokens, it does not bind them to the authenticated user's session.
+The root cause is improper session binding of the CSRF protection mechanism.
 
-Consequently, valid tokens obtained from a different session can be submitted within the victim's authenticated session and accepted by the server. The server thus treats the request as originating from the victim, relying on CSRF and CSRFKey tokens that were not originally issued for that specific session.
+The application correctly validates the relationship between the `csrf` token and the `csrfKey` cookie, but it does not associate this token-cookie pair with the authenticated user's session.
+
+As a result, a valid `csrf` token and `csrfKey` obtained from another session can be used together with the victim's authenticated session.
+
+The CRLF injection in the search functionality further increases exploitability by allowing the attacker to overwrite the victim's `csrfKey` cookie through an injected `Set-Cookie` response header.
 
 For example:
 
@@ -344,7 +350,7 @@ This occurs due to inconsistent implementation of security measures.
 | Severity |  Medium |
 | CVSS Score | Not calculated |
 | CWE | CWE-352: Cross-Site Request Forgery (CSRF) |
-| OWASP Category | Cross-Site Request Forgery (CSRF) |
+| OWASP Reference | OWASP CSRF Prevention Guidance |
 | Exploitability | Demonstrated in lab |
 | Business Impact | Unauthorized account/email modification; potential account takeover depending on account recovery functionality |
 
@@ -374,14 +380,22 @@ This occurs due to inconsistent implementation of security measures.
   - Do not rely on custom headers as the sole CSRF defense.
  
   - **Checking Origin and Referer Headers**
-  - Verifying the Origin or Referer header on the server side as an additional validation step to ensure that the request actually originated from     your site rather than a malicious one.
+  - Verifying the Origin or Referer header on the server side as an additional validation step to ensure that the request actually originated from your site rather than a malicious one.
+ 
+  - **Prevent HTTP Response Header Injection**
+  - Reject or safely encode CR (`\r`) and LF (`\n`) characters in user-controlled input.
+  - Never construct HTTP response headers directly from unsanitized user input.
+  - Use framework-provided APIs for setting response headers and cookies.
     
 ---
 
 # Lessons Learned
 
 - Browsers may automatically attach authentication cookies to requests, subject to cookie policies such as SameSite.
-- Predictability and ease of exploitation.
+- A CSRF token must be bound to the authenticated user's session, not merely validated for correctness.
+- A token-to-cookie relationship is insufficient if the cookie itself is not session-bound.
+- Secondary vulnerabilities can be chained with CSRF weaknesses to bypass otherwise effective token validation.
+- CRLF injection can affect HTTP response headers and may enable security-control manipulation.
 - Risks associated with state-changing HTTP requests.
 - Simulating the attack via independent interfaces.
 - Authentication is not equivalent to intent verification.
@@ -431,8 +445,14 @@ This occurs due to inconsistent implementation of security measures.
 
 # Conclusion
 
-This practical experiment demonstrated the existence of a Cross-Site Request Forgery (CSRF) vulnerability in the email change function. Although the application required valid `CSRF` and `CSRFKey` tokens, it failed to bind these tokens to the authenticated user's session.
+This practical assessment demonstrated a Cross-Site Request Forgery vulnerability in the email change functionality.
 
-By obtaining valid `CSRF` and `CSRFKey` tokens from a different session, the attacker was able to craft a forged CSRF POST request that combined the victim's authenticated session context with the attacker's own CSRF token. The server accepted the request and updated the victim's email address.
+The application validated the relationship between the `csrf` token and the `csrfKey` cookie, but failed to bind this token-cookie pair to the authenticated user's session. Testing confirmed that a fresh CSRF token and corresponding CSRFKey obtained from another session could be accepted within the victim's authenticated session.
+
+The vulnerability became practically exploitable by chaining it with a CRLF injection in the search functionality. The CRLF injection allowed an attacker to inject a `Set-Cookie` header and overwrite the victim's `csrfKey` cookie, after which the attacker's valid CSRF token could be used to submit a forged state-changing request.
+
+The final exploitation successfully changed the victim's email address.
+
+The key takeaway is that effective CSRF protection requires both valid token verification and proper binding of the token to the authenticated user's session. Security controls should also be protected from secondary vulnerabilities that could allow an attacker to manipulate the values on which those controls depend.
 
 The key takeaway here is that protection against CSRF attacks requires more than merely verifying the validity of the tokens; the tokens must also be correctly bound to the authenticated session within which the request is being processed.
