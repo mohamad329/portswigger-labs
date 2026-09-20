@@ -42,13 +42,7 @@
 
 # Executive Summary
 
-A Cross-Site Request Forgery (CSRF) vulnerability was identified in the email change functionality. The application validates the relationship between the `csrf` token and the `csrfKey` cookie, but does not bind the `csrfKey` and corresponding CSRF token to the authenticated user's session.
-
-During testing, a valid `csrf` token and `csrfKey` obtained from a separate attacker-controlled session were accepted when submitted together with the victim's authenticated session.
-
-The application also contains a CRLF injection vulnerability in the search functionality, which allows an attacker to inject a `Set-Cookie` header and overwrite the victim's `csrfKey` cookie. By combining the CRLF injection with the CSRF weakness, an attacker can cause a victim's browser to submit a forged request that changes the victim's email address.
-
-This demonstrates that the application's CSRF protection validates token validity and token-to-cookie association, but fails to establish the required association between those values and the authenticated user session.
+A "Clickjacking" vulnerability was discovered in the email deletion function. Upon capturing the request with Burp Suite and re-sending it via the Repeater to analyze the response, no Clickjacking protections such as `X-Frame-Options` or `Content-Security-Policy` were observed. This allowed the page to be embedded within an `<iframe>` element with zero opacity; a button was then positioned over the actual email deletion button using a `<div>` element. Consequently, the victim would see only the button we created, and clicking it would result in the deletion of their account.
 
 ---
 
