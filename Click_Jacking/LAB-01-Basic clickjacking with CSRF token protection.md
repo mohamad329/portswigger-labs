@@ -10,7 +10,7 @@
 
 ---
 
-![Cross-Site Request Forgery](https://img.shields.io/badge/Click-Jacking-red)
+![Click-Jacking](https://img.shields.io/badge/Click-Jacking-red)
 
 ![Solved](https://img.shields.io/badge/Status-Solved-success)
 
@@ -42,13 +42,13 @@
 
 # Executive Summary
 
-A "Clickjacking" vulnerability was discovered in the email deletion function. Upon capturing the request with Burp Suite and re-sending it via the Repeater to analyze the response, no Clickjacking protections such as `X-Frame-Options` or `Content-Security-Policy` were observed. This allowed the page to be embedded within an `<iframe>` element with zero opacity; a button was then positioned over the actual email deletion button using a `<div>` element. Consequently, the victim would see only the button we created, and clicking it would result in the deletion of their account.
+A Clickjacking vulnerability was identified in the account deletion functionality. The authenticated account page lacked effective anti-framing protections, allowing it to be embedded within an iframe. A deceptive UI element was positioned over the legitimate "Delete account" button, causing a victim's click to be delivered to the underlying sensitive action.
 
 ---
 
 # Objective
 
-The goal of this lab is to demonstrate how an attacker can embed the target page within a frame, place a button over the "Delete Email" function, and set the target page's opacity to zero so the victim cannot see where they are clicking.
+The objective of this lab is to demonstrate how an attacker can embed an authenticated account page within an iframe, conceal the legitimate interface using CSS, and position a deceptive element over the "Delete account" button to induce the victim to perform an unintended account-deletion action.
 
 ---
 
@@ -61,9 +61,10 @@ A clickjacking vulnerability occurs when an attacker tricks a victim into believ
 
 # Attack Requirements
 
-1. Ability to embed the site within a frame.
-2. The ability to control transparency and positioning via CSS.
-3. Presence of a sensitive single-click action (Action-Based Page).
+1. The target page must be frameable by the attacker.
+2. The attacker must be able to control the framing page's layout and CSS.
+3. The target page must contain a security-sensitive user action that can be triggered through a click.
+4. The victim must be authenticated to the target application.
 
 ---
 
@@ -72,26 +73,26 @@ A clickjacking vulnerability occurs when an attacker tricks a victim into believ
 | Item | Value |
 |------|-------|
 | Target | PortSwigger Web Security Academy lab |
-| Primary Endpoint | `/my-account/change-email` |
+| Primary Endpoint | `/my-account/delete` |
 | Primary HTTP Method | POST |
-| Primary Parameter | `Delete email` |
+| Primary Action | Account deletion |
 | CSRF Parameter | `csrf` |
 | Authentication | Session cookie |
 | Attack Platform | Exploit Server |
-| Attack Vector | Cross-site HTML |
+| Attack Vector | Cross-site HTML / iframe |
 
 ---
 
 # Methodology
 
-1. Open the vulnerable lab and log in to the application.
-2. Log in using the provided credentials and capture the original request using Burp Suite.
-3. Send the request to receive a response from the server.
-4. Verify the absence of clickjacking protection mechanisms, such as `X-Frame-Options` or `Content-Security-Policy`.
-5. Embed the target page within a frame using the `<iframe>` element.
-6. Create a button using a `<div>` element and position it over the "Delete Email" button on the target page.
-7. Host the malicious page on the exploit server.
-8. Deliver the exploit to the victim and verify the success of the exploit.
+1. Log in to the lab using the provided credentials.
+2. Access the authenticated `/my-account?id=wiener` page.
+3. Capture the authenticated account-page request using Burp Suite.
+4. Review the server response for anti-framing protections.
+5. Confirm that the response does not contain `X-Frame-Options` or a CSP `frame-ancestors` directive.
+6. Embed the authenticated page within an iframe hosted on the exploit server.
+7. Position a deceptive element over the legitimate "Delete account" button.
+8. Deliver the exploit to the victim and verify the account-deletion action.
     
 ---
 
@@ -197,23 +198,28 @@ This part deals with creating the frame and embedding the target page within it 
 # Exploitation Flow
 
 ```text
-                         Attacker      
-                            │ 
-                            ▼
-                 Target Identification 
-                            │
-                            ▼
-                  Crafting the Decoy Page 
-                            │
-                            ▼
-                  Alignment and Opacity
-                            │
-                            ▼
-                  Delivery and Execution
-                            │
-                            ▼
-                       Email Deleted
-                           ✅
+
+Victim authenticates to the target application
+                ↓
+Attacker identifies a frameable sensitive page
+                ↓
+Attacker embeds the page inside an iframe
+                ↓
+Attacker creates a deceptive UI overlay
+                ↓
+Attacker aligns the overlay with "Delete account"
+                ↓
+Iframe is made effectively invisible
+                ↓
+Exploit is delivered to the victim
+                ↓
+Victim clicks the visible decoy element
+                ↓
+Click is received by the legitimate "Delete account" button
+                ↓
+Browser submits the legitimate form with its valid CSRF token
+                ↓
+Account deletion is triggered
           
   
 ```
@@ -222,17 +228,21 @@ This part deals with creating the frame and embedding the target page within it 
 
 # Impact
 
-1. Account Takeover: Triggering changes to account settings, such as modifying the password or email address.
-2. Unauthorized Financial Transactions: Tricking the user into transferring funds or making purchases unintentionally.
-3. Granting Critical Permissions: Allowing third-party applications or malicious actors to access user data, the camera, or the microphone. 
-4. Publishing Malicious Content: Forcing interactions with posts or artificially boosting "likes" for specific social media pages on the victim's behalf.
-5. Downloading Malware: Deceiving the user into downloading malicious files by clicking on deceptive links hidden behind fake interfaces.
+The demonstrated impact is unauthorized account deletion.
+
+A successful Clickjacking attack can cause an authenticated victim to unintentionally trigger the application's account-deletion functionality with a single click.
+
+Because account deletion is a destructive and potentially irreversible action, successful exploitation can result in loss of the user's account and associated data.
+
+The lab demonstrates this specific impact; additional consequences would depend on the functionality and sensitivity of the affected application.
 
 ---
 
 # Root Cause
 
-The root cause is the absence of protection mechanisms—such as `X-Frame-Options` or `Content-Security-Policy`—that prevent the target page from being embedded within a frame. This allows an attacker to embed a page containing a sensitive action and completely hide it by manipulating the page's opacity and overlaying a button on top of the button for that sensitive action.
+The root cause is the absence of effective anti-framing controls on the authenticated account page. The application does not restrict which external origins are permitted to embed the page through an iframe.
+
+As a result, an attacker can frame the authenticated page and use CSS-based UI redressing to align a deceptive interface element with a legitimate security-sensitive action.
 
 ---
 
@@ -243,40 +253,55 @@ The root cause is the absence of protection mechanisms—such as `X-Frame-Option
 | Severity |  Medium |
 | CVSS Score | Not calculated |
 | CWE | CWE-1021: Improper Restriction of Rendered Page Layers or Frames |
-| OWASP Reference | OWASP CSRF Prevention Guidance |
+| OWASP Reference | OWASP Click Jacking Prevention Guidance |
 | Exploitability | Demonstrated in lab |
-| Business Impact | Unauthorized account/email modification; potential account takeover depending on account recovery functionality |
+| Business Impact | Unauthorized account deletion and potential loss of associated account data |
 
 ---
 
 # Remediation
 
-- **Using Content Security Policy (CSP), specifically the `frame-ancestors` directive**
-  - This is considered the primary and most flexible line of defense in modern browsers.
-  - It controls which sites are permitted to embed your pages: to completely prevent embedding: `Content-Security-Policy: frame-ancestors        'none';`; to allow only your own site to embed: `Content-Security-Policy: frame-ancestors 'self';`; to allow specific, trusted sites:         `Content-Security-Policy: frame-ancestors 'self' https://trusted-site.com;`.
+- ### Content Security Policy
 
-- **Enable X-Frame-Options security header**
-  - Although modern browsers favor CSP, using this header ensures protection for older browsers (backward compatibility): X-Frame-Options:         DENY (to prevent any framing) or X-Frame-Options: SAMEORIGIN (to allow only your own site).
-    
-- **Securing cookies via the SameSite attribute**
-  - Set sensitive cookies (such as login sessions) to `SameSite=Lax` or `SameSite=Strict`. This prevents the browser from automatically           sending user cookies when your site is loaded within an iframe on an attacker's site, thereby neutralizing the attack.
+Implement the `frame-ancestors` directive to explicitly control which origins are allowed to embed the application.
+
+Examples:
+
+Content-Security-Policy: frame-ancestors 'none';
+
+or:
+
+Content-Security-Policy: frame-ancestors 'self';
+
+
+- ### X-Frame-Options
+
+Deploy `X-Frame-Options` as an additional anti-framing control:
+
+X-Frame-Options: DENY
+
+or:
+
+X-Frame-Options: SAMEORIGIN
     
 ---
 
 # Lessons Learned
 
-- Ineffectiveness of CSRF protection: The CSRF token does not protect the site against clickjacking, because the browser automatically and      entirely legitimately sends the token and session cookies while the user interacts with the hidden frame.
+- The presence of a valid CSRF token does not inherently prevent Clickjacking. When the authenticated page is successfully framed and the       victim interacts with the overlaid interface, the legitimate form submission can include the valid CSRF token.
 - UI Redressing Mechanism: The attack relies on layering two elements using CSS; the target website is rendered completely invisible via the    opacity property (`opacity: 0`), while deceptive buttons are placed over it to entice the victim into clicking.
 - The Importance of Element Alignment: The technical success of the attack relies on precision in using positioning properties (such as         `top`, `left`, and `z-index`) to align the hidden, sensitive buttons with the visible, decoy buttons.
 - Absence of basic browser defenses: The lab demonstrates that the site is vulnerable due to the lack of security headers that prevent          framing such as the `X-Frame-Options` header or the Content Security Policy (CSP), specifically the `frame-ancestors` directive.
 - Severity of Impact: The attack demonstrates the potential to force a user into taking critical, irreversible actions (such as permanently      deleting their account) with a single unintentional click.
+- CSRF Token Limitation: A valid CSRF token protects against certain forged requests, but it does not by itself prevent Clickjacking when an    attacker can cause the victim to interact with the legitimate framed page.
+
 
 ---
 
 # References
 
 - PortSwigger Web Security Academy — Click Jacking
-- OWASP — Click Jacking Prevention Cheat Sheet
+- OWASP — Click Jacking Defense Cheat Sheet
 - Mozilla Developer Network (MDN Web Docs)
 - FIRST — CVSS Specification
 
