@@ -333,7 +333,7 @@ X-Frame-Options: SAMEORIGIN
 
 ## Request 
 
-![Request](Screen-Shots/burb-request-lab2.png)
+![burb-request](Screen-Shots/burb-request-lab2.png)
 
 ...
 
@@ -345,7 +345,7 @@ X-Frame-Options: SAMEORIGIN
 
 ## Check Security
 
-![Check](Screen-Shots/cheak-security-lab2.png)
+![Check-Scurity](Screen-Shots/cheak-security-lab2.png)
 
 ...
 
