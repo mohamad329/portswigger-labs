@@ -339,7 +339,7 @@ X-Frame-Options: SAMEORIGIN
 
 ## Request 
 
-![burb-request](Screen-Shots/burb-request-lab3.png)
+![burp](Screen-Shots/burb-request-lab3.png)
 
 ...
 
