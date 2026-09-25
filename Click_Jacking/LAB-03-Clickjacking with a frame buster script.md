@@ -3,7 +3,7 @@
 ## Lab Information
 
 - **Category:** ClickJacking
-- **Type:** Clickjacking with prefilled form input
+- **Type:** Clickjacking with a frame buster script
 - **Difficulty:** APPRENTICE
 - **Status:** ✅ Solved
 - **Date:** 2026-9-25
@@ -42,13 +42,13 @@
 
 # Executive Summary
 
-A "clickjacking" vulnerability was discovered in the email change function—which included a "frame buster" protection mechanism—where the JavaScript code contained a conditional check intended to prevent the target page from being embedded. However, the parameter responsible for updating the email address could be controlled via the URL; the account page accessible to logged-in users lacked effective anti-framing protections, allowing it to be embedded within an `iframe` and enabling the email value to be set through the URL specified in the `src` attribute. A deceptive UI element was placed over the actual "Change Email" button, thereby redirecting the victim's click toward the sensitive action located beneath it.
+A "clickjacking" vulnerability was discovered in the email change function—which included a "frame buster" protection mechanism—where the JavaScript code contained a conditional check intended to prevent the target page from being embedded. However, the parameter responsible for updating the email address could be controlled via the URL; the account page accessible to logged-in users lacked effective anti-framing protections, allowing it to be embedded within an `iframe` and enabling the email value to be set through the URL specified in the `src` attribute. A deceptive UI element was placed over the actual "Change Email" button, thereby causing the victim's click to be delivered to the legitimate sensitive control underneath the decoy element.
 
 ---
 
 # Objective
 
-This lab demonstrates how an attacker can embed an authenticated account page within an iframe—despite the presence of a "Frame Buster" designed to prevent such embedding—by controlling the email value via the `src` attribute's URL. It also shows how to render the target page transparently while overlaying deceptive elements on top of the legitimate "Update email" and "Update Account" buttons, thereby tricking the victim into unintentionally updating their account.
+This lab demonstrates how an attacker can embed an authenticated account page within an iframe despite the presence of a "Frame Buster" designed to prevent. It also shows how to render the target page transparently while overlaying deceptive elements on top of the legitimate "Update email" buttons, thereby tricking the victim into unintentionally updating their account.
 
 ---
 
@@ -65,6 +65,7 @@ A Clickjacking vulnerability occurs when an attacker overlays or disguises a leg
 2. The attacker must be able to control the framing page's layout and CSS.
 3. The target page must contain a security-sensitive user action that can be triggered through a click.
 4. The victim must be authenticated to the target application.
+5. The target page relies on a client-side frame-busting script rather than effective server/browser-enforced anti-framing controls
 
 ---
 
@@ -93,7 +94,7 @@ A Clickjacking vulnerability occurs when an attacker overlays or disguises a leg
 6. Note the presence of a JavaScript check designed to prevent the page from being embedded.
 7. Test embedding the page using the `sandbox` attribute.
 8. Embed the authenticated page within an `iframe` (using the `sandbox` attribute) hosted on the exploit server.
-9. Overlay a deceptive element on top of the legitimate "Update account" button.
+9. Overlay a deceptive element on top of the legitimate "Update email" button.
 10. Verify that the victim's email address has been changed to the value controlled by the attacker.
     
 ---
@@ -129,7 +130,7 @@ if(top != self) {
     }, false);
 }
 ```
-This JavaScript code prevents the page from being embedded within a frame; if a user attempts to embed the page in a frame, a "This page cannot be displayed in a frame" message will appear after the page loads.
+This JavaScript code prevents the page from being embedded within a frame; detects that the page is framed and replaces the page content "This page cannot be framed".
 
 ### Step 4 — Embedding experience with the sandbox attribute
 
@@ -137,6 +138,11 @@ This JavaScript code prevents the page from being embedded within a frame; if a 
 <iframe sandbox src = "LAB ID.web-security-academy/my-account"> </iframe>
 ```
 We observe that the account page has appeared without the warning message, indicating that the page can be embedded using the `sandbox` attribute.
+
+| Test | Result |
+|------|-------|
+| Normal iframe | This page cannot be framed |
+| Sandboxed iframe | Authenticated account page rendered |
 
 ---
 
@@ -175,14 +181,26 @@ We observe that the account page has appeared without the warning message, indic
 <style>
    iframe {
         position: relative;
+        
+```
+Specifies the positioning method of the iframe.
+
+```html
         width: 500px;
         height: 700px;
+```
+They determine the dimensions of the frame.
+
+```html
         opacity: 0;
+```
+They make the frame invisible to the user.
+
+```html
         z-index: 2;
     }
-
 ```
-Specific to the frame's formatting ranging from its height, distance from the left, transparency, and stacking order to its length, width, positioning, and edges.
+They place the iframe in a layer above the decoy element.
 
 ```html
 .decoy {
@@ -193,7 +211,8 @@ Specific to the frame's formatting ranging from its height, distance from the le
     }
 </style>
 ```
-This section covers the styling of the button that will appear above the email update button; we adjust its height, left offset, position, and stacking order.
+This section covers the styling of the deceptive element that will appear above the email update button; we adjust its height, left offset, position, and stacking order.
+The decoy is visually presented to the victim, while the transparent iframe remains the higher interactive layer.
 
 ```html
 <div class="decoy">Click me</div>
@@ -205,6 +224,7 @@ This part deals with creating the decoy element and the text within it.
 <iframe sandbox src="https://LAB-ID.web-security-academy.net/my-account?email=mohamad@gmail.com"></iframe>
 ```
 This section covers the creation of a frame and the embedding of a target page within it using the `sandbox` attribute—which imposes restrictions on "frame busters"—as well as the inclusion of an attacker-controlled email address via the `src` attribute.
+allow-forms permits form submission from the sandboxed document, which is required for the legitimate Change Email form to submit when the victim clicks the overlaid control.
 
 ---
 
@@ -212,23 +232,25 @@ This section covers the creation of a frame and the embedding of a target page w
 
 ```text
 
-sandboxed iframe
-        │
-        ▼
-Frame Buster is prevented from
-performing its intended defense
-        │
-        ▼
-Authenticated page remains visible
-        │
-        ▼
-Transparent iframe + decoy
-        │
-        ▼
-Victim clicks
-        │
-        ▼
-Update email
+Victim is authenticated
+        ↓
+Attacker page loads sandboxed iframe
+        ↓
+Authenticated /my-account page is rendered
+        ↓
+Frame Buster does not replace the page
+        ↓
+iframe is made transparent
+        ↓
+Decoy element is positioned over Update email
+        ↓
+Victim clicks the visible decoy
+        ↓
+Click reaches the legitimate Update email button
+        ↓
+Legitimate Change Email form is submitted
+        ↓
+Victim's email address is changed
   
 ```
 
@@ -246,7 +268,7 @@ Depending on the application's account-recovery and email-verification mechanism
 
 # Root Cause
 
-The root cause of the problem lies in the absence of effective anti-framing controls on the authenticated account page; a JavaScript-based "frame buster" is ineffective at preventing the page from being embedded within an `iframe` because the `sandbox` attribute imposes restrictions that hinder the frame buster's operation.
+The root cause of the problem lies in the absence of effective anti-framing controls on the authenticated account page; 
 
 Consequently, an attacker can embed the authenticated page and employ CSS-based UI redressing techniques to align a deceptive UI element with a legitimate, security-sensitive action.
 
@@ -256,10 +278,10 @@ Consequently, an attacker can embed the authenticated page and employ CSS-based 
 
 | Item | Value |
 |------|-------|
-| Severity |  Medium |
+| Severity |  Medium (context-dependent) |
 | CVSS Score | Not calculated |
 | CWE | CWE-1021: Improper Restriction of Rendered Page Layers or Frames |
-| OWASP Reference | OWASP Click Jacking Prevention Guidance |
+| OWASP Reference | OWASP Clickjacking Defense Cheat Sheet |
 | Exploitability | Demonstrated in lab |
 | Business Impact | Unauthorized modification of the authenticated user's email address |
 
@@ -300,14 +322,13 @@ X-Frame-Options: SAMEORIGIN
 - Absence of basic browser defenses: The lab demonstrates that the site is vulnerable due to the lack of security headers that prevent          framing such as the `X-Frame-Options` header or the Content Security Policy (CSP), specifically the `frame-ancestors` directive.
 - Severity of Impact: The attack demonstrates the potential to force a user into taking critical, irreversible actions (schanging their email address) with a single unintentional click.
 - CSRF Token Limitation: A valid CSRF token protects against certain forged requests, but it does not by itself prevent Clickjacking when an    attacker can cause the victim to interact with the legitimate framed page.
-- A frame buster is not an effective mechanism for preventing a page from being embedded within a frame.
-
+- Reliance on a client-side frame-busting script alone does not provide reliable protection against Clickjacking
 
 ---
 
 # References
 
-- PortSwigger Web Security Academy — ClickJacking
+- PortSwigger Web Security Academy — Clickjacking
 - OWASP Clickjacking Defense Cheat Sheet
 - Mozilla Developer Network (MDN Web Docs)
 - FIRST — CVSS Specification
@@ -352,7 +373,7 @@ X-Frame-Options: SAMEORIGIN
 
 This practical assessment revealed a "Clickjacking" vulnerability affecting a critical action changing the email address despite the presence of a mechanism designed to prevent page embedding (a "Frame Buster").
 
-In the absence of defensive mechanisms against this vulnerability such as `X-Frame-Options` or `Content-Security-Policy` an attacker can embed the target page (which contains the sensitive account update action) within an `<iframe>` element, utilizing the `sandbox` attribute to override the Frame Buster's restrictions. By setting the frame's opacity to zero, the attacker obscures the victim's view of the actual clickable area; they then position a `<div>` element over the "Update Email" button, tricking the victim into clicking it.
+In the absence of defensive mechanisms against this vulnerability such as `X-Frame-Options` or `Content-Security-Policy` an attacker can embed the target page (which contains the sensitive account update action) within an `<iframe>` element, using a sandboxed iframe to restrict the framed document in a way that prevents the frame-busting script from performing its intended defense. By setting the frame's opacity to zero, the attacker obscures the victim's view of the actual clickable area; they then position a `<div>` element over the "Update Email" button, tricking the victim into clicking it.
 The key point is that protection against clickjacking attacks requires the use of a Content Security Policy (CSP) specifically the `frame-ancestors` directive—and the `X-Frame-Options` security header, rather than relying solely on a JavaScript-based solution (such as a "frame buster").
 
 The lesson here is that a frame buster is not an effective mechanism for preventing a page from being embedded within a frame.
