@@ -20,6 +20,7 @@ This repository contains my notes and write-ups while solving labs from PortSwig
 - SQL Injection
 - Cross-Site Scripting (XSS)
 - Cross-Site Request Forgery (CSRF)
+- Clickjacking
 - Authentication
 - Access Control
 - SSRF
@@ -35,8 +36,9 @@ This repository contains my notes and write-ups while solving labs from PortSwig
 | Category | Status |
 |----------|--------|
 | SQL Injection | ✅ |
-| XSS | ⏳ |
-| CSRF | ⏳ |
+| XSS | ✅ |
+| CSRF | ✅ |
+| Clickjacking | ✅ |
 | Authentication | ⏳ |
 | Access Control | ⏳ |
 | SSRF | ⏳ |
